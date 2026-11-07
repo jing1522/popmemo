@@ -1,0 +1,9 @@
+build/
+.gradle/
+.idea/
+*.iml
+local.properties
+*.apk
+*.ap_
+*.log
+.probe.txt
