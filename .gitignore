@@ -10,3 +10,5 @@ local.properties
 
 tmp-*.xml
 screenshots/ui.xml
+
+screenshots/
