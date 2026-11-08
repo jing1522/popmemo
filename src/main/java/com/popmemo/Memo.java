@@ -8,18 +8,25 @@ public class Memo {
 
     public final long id;
     public String text;
-    /** 重要 → 解锁时才会弹出来。 */
-    public boolean important;
+    /** 顺手记的琐事：标了就只在列表里躺着，不弹。默认 false = 会弹。 */
+    public boolean muted;
     public long createdAt;
-    /** 上次弹窗时间，用于 30 分钟节流。 */
-    public long lastShownAt;
+    /** 上次出现在弹窗里的时间。越久没露面，下次越靠前。 */
+    public long lastSeenAt;
+    /** 办完的时间。0 表示还没办。 */
+    public long doneAt;
 
-    public Memo(long id, String text, boolean important, long createdAt, long lastShownAt) {
+    public Memo(long id, String text, boolean muted, long createdAt, long lastSeenAt, long doneAt) {
         this.id = id;
         this.text = text;
-        this.important = important;
+        this.muted = muted;
         this.createdAt = createdAt;
-        this.lastShownAt = lastShownAt;
+        this.lastSeenAt = lastSeenAt;
+        this.doneAt = doneAt;
+    }
+
+    public boolean isDone() {
+        return doneAt > 0;
     }
 
     public JSONObject toJson() {
@@ -27,9 +34,10 @@ public class Memo {
         try {
             o.put("id", id);
             o.put("text", text);
-            o.put("important", important);
+            o.put("muted", muted);
             o.put("createdAt", createdAt);
-            o.put("lastShownAt", lastShownAt);
+            o.put("lastSeenAt", lastSeenAt);
+            o.put("doneAt", doneAt);
         } catch (JSONException ignored) {
         }
         return o;
@@ -39,8 +47,9 @@ public class Memo {
         return new Memo(
                 o.optLong("id"),
                 o.optString("text"),
-                o.optBoolean("important"),
+                o.optBoolean("muted"),
                 o.optLong("createdAt"),
-                o.optLong("lastShownAt"));
+                o.optLong("lastSeenAt"),
+                o.optLong("doneAt"));
     }
 }

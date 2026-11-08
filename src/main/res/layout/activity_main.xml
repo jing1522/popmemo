@@ -32,24 +32,29 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/permission_banner"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp">
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/switch_label"
-            android:textSize="15sp" />
+            android:text="@string/need_overlay"
+            android:textColor="#D93025"
+            android:textSize="14sp" />
 
-        <Switch
-            android:id="@+id/service_switch"
+        <Button
+            android:id="@+id/grant_overlay"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:text="@string/grant" />
     </LinearLayout>
 
     <TextView
@@ -69,5 +74,15 @@
         android:layout_weight="1"
         android:divider="#14000000"
         android:dividerHeight="1dp" />
+
+    <TextView
+        android:id="@+id/done_footer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="10dp"
+        android:gravity="center"
+        android:textColor="#888888"
+        android:textSize="13sp"
+        android:visibility="gone" />
 
 </LinearLayout>

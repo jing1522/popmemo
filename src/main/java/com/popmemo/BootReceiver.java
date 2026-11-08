@@ -3,15 +3,14 @@ package com.popmemo;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
+import android.provider.Settings;
 
 /** 开机后自己把服务拉起来，免得每次重启都要开一次 App。 */
 public class BootReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        SharedPreferences sp = context.getSharedPreferences("popmemo", Context.MODE_PRIVATE);
-        if (!sp.getBoolean(UnlockService.PREF_ENABLED, false)) {
+        if (!Settings.canDrawOverlays(context)) {
             return;
         }
         try {

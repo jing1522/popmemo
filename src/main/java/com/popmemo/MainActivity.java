@@ -5,8 +5,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Paint;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -21,11 +21,12 @@ import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
 import java.util.List;
 
 public class MainActivity extends Activity {
@@ -33,15 +34,20 @@ public class MainActivity extends Activity {
     private static final int REQ_SPEECH = 1;
 
     private MemoStore store;
-    private SharedPreferences prefs;
-    private final List<Memo> memos = new ArrayList<>();
+
+    /** 全部数据。 */
+    private final List<Memo> all = new ArrayList<>();
+    /** 当前列表显示的东西（待办 + 可能展开的已办完）。 */
+    private final List<Memo> visible = new ArrayList<>();
+
     private MemoAdapter adapter;
+    private boolean showDone;
 
     private EditText input;
     private ListView list;
     private TextView empty;
-    private Switch serviceSwitch;
-    private boolean suppressSwitch;
+    private TextView doneFooter;
+    private View permissionBanner;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,14 +55,18 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         store = new MemoStore(this);
-        prefs = getSharedPreferences("popmemo", MODE_PRIVATE);
-        memos.addAll(store.load());
+        all.addAll(store.load());
 
         input = findViewById(R.id.input);
         list = findViewById(R.id.list);
         empty = findViewById(R.id.empty);
+        doneFooter = findViewById(R.id.done_footer);
+        permissionBanner = findViewById(R.id.permission_banner);
         Button voice = findViewById(R.id.voice);
-        serviceSwitch = findViewById(R.id.service_switch);
+        Button grantOverlay = findViewById(R.id.grant_overlay);
+
+        adapter = new MemoAdapter();
+        list.setAdapter(adapter);
 
         // Android 15 强制全面屏，不自己留出状态栏的位置就会被时间压住。
         View rootView = findViewById(R.id.root);
@@ -75,30 +85,6 @@ public class MainActivity extends Activity {
             return insets;
         });
 
-        serviceSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (suppressSwitch) {
-                return;
-            }
-            if (isChecked) {
-                if (!Settings.canDrawOverlays(this)) {
-                    askOverlayPermission();
-                    setSwitchSilently(false);
-                    return;
-                }
-                requestNotificationPermissionIfNeeded();
-                prefs.edit().putBoolean(UnlockService.PREF_ENABLED, true).apply();
-                startForegroundService(new Intent(this, UnlockService.class));
-            } else {
-                prefs.edit().putBoolean(UnlockService.PREF_ENABLED, false).apply();
-                stopService(new Intent(this, UnlockService.class));
-            }
-        });
-
-        adapter = new MemoAdapter();
-        list.setAdapter(adapter);
-        refreshEmpty();
-
-        // 回车即存
         input.setOnEditorActionListener((v, actionId, event) -> {
             boolean done = actionId == EditorInfo.IME_ACTION_DONE;
             boolean enter = event != null
@@ -112,72 +98,62 @@ public class MainActivity extends Activity {
         });
 
         voice.setOnClickListener(v -> startVoiceInput());
-
-        // 点一下 = 标记 / 取消「重要」，解锁时只弹重要的
-        list.setOnItemClickListener((parent, view, position, id) -> {
-            Memo memo = memos.get(position);
-            memo.important = !memo.important;
-            store.save(memos);
-            adapter.notifyDataSetChanged();
-            Toast.makeText(this,
-                    memo.important ? "已标为重要，解锁时会弹" : "不再弹了",
-                    Toast.LENGTH_SHORT).show();
+        grantOverlay.setOnClickListener(v -> openOverlaySettings());
+        doneFooter.setOnClickListener(v -> {
+            showDone = !showDone;
+            refresh();
         });
 
-        // 长按删除
+        // 点一下 = 这条要不要弹（默认弹，点了就变「琐事」）
+        list.setOnItemClickListener((parent, view, position, id) -> toggleMemo(visible.get(position)));
+
         list.setOnItemLongClickListener((parent, view, position, id) -> {
-            Memo memo = memos.get(position);
+            Memo memo = visible.get(position);
             new AlertDialog.Builder(this)
-                    .setMessage("删掉「" + memo.text + "」？")
+                    .setMessage("彻底删掉「" + memo.text + "」？")
                     .setNegativeButton("留着", null)
                     .setPositiveButton("删掉", (d, w) -> {
-                        memos.remove(position);
-                        store.save(memos);
-                        adapter.notifyDataSetChanged();
-                        refreshEmpty();
+                        all.remove(memo);
+                        store.save(all);
+                        refresh();
                     })
                     .show();
             return true;
         });
+
+        refresh();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        boolean enabled = prefs.getBoolean(UnlockService.PREF_ENABLED, false);
-        setSwitchSilently(enabled);
-        if (enabled && Settings.canDrawOverlays(this)) {
-            startForegroundService(new Intent(this, UnlockService.class));
+        refresh();
+        ensureService();
+    }
+
+    /** 没有开关：只要能弹，就一直开着。 */
+    private void ensureService() {
+        boolean canDraw = Settings.canDrawOverlays(this);
+        permissionBanner.setVisibility(canDraw ? View.GONE : View.VISIBLE);
+        if (!canDraw) {
+            return;
         }
+        requestNotificationPermissionIfNeeded();
+        startForegroundService(new Intent(this, UnlockService.class));
     }
 
-    private void setSwitchSilently(boolean checked) {
-        suppressSwitch = true;
-        serviceSwitch.setChecked(checked);
-        suppressSwitch = false;
-    }
-
-    private void askOverlayPermission() {
-        new AlertDialog.Builder(this)
-                .setTitle("还差一个权限")
-                .setMessage("要盖在屏幕最上面弹卡片，得先允许「显示在其他应用上层」。")
-                .setNegativeButton("算了", null)
-                .setPositiveButton("去开启", (d, w) -> {
-                    try {
-                        startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:" + getPackageName())));
-                    } catch (Exception e) {
-                        startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
-                    }
-                })
-                .show();
-    }
-
-    private void requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= 33
-                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 3);
+    private void toggleMemo(Memo memo) {
+        if (memo.isDone()) {
+            memo.doneAt = 0;
+            Toast.makeText(this, "又放回待办了", Toast.LENGTH_SHORT).show();
+        } else {
+            memo.muted = !memo.muted;
+            Toast.makeText(this,
+                    memo.muted ? "不弹了，只在列表里" : "解锁时会弹它",
+                    Toast.LENGTH_SHORT).show();
         }
+        store.save(all);
+        refresh();
     }
 
     private void addCurrentInput() {
@@ -185,12 +161,44 @@ public class MainActivity extends Activity {
         if (text.isEmpty()) {
             return;
         }
-        memos.add(0, new Memo(System.currentTimeMillis(), text, false, System.currentTimeMillis(), 0L));
-        store.save(memos);
+        long now = System.currentTimeMillis();
+        all.add(0, new Memo(now, text, false, now, 0L, 0L));
+        store.save(all);
         input.setText("");
-        adapter.notifyDataSetChanged();
-        refreshEmpty();
+        refresh();
         list.setSelection(0);
+    }
+
+    private void refresh() {
+        visible.clear();
+        List<Memo> active = new ArrayList<>();
+        List<Memo> done = new ArrayList<>();
+        for (Memo memo : all) {
+            if (memo.isDone()) {
+                done.add(memo);
+            } else {
+                active.add(memo);
+            }
+        }
+        Collections.sort(active, (a, b) -> Long.compare(b.createdAt, a.createdAt));
+        Collections.sort(done, (a, b) -> Long.compare(b.doneAt, a.doneAt));
+
+        visible.addAll(active);
+        if (showDone) {
+            visible.addAll(done);
+        }
+
+        adapter.notifyDataSetChanged();
+        empty.setVisibility(active.isEmpty() && !showDone ? View.VISIBLE : View.GONE);
+
+        if (done.isEmpty()) {
+            doneFooter.setVisibility(View.GONE);
+        } else {
+            doneFooter.setVisibility(View.VISIBLE);
+            doneFooter.setText(showDone
+                    ? "收起"
+                    : "办完了 " + done.size() + " 件 · 点开看");
+        }
     }
 
     private void startVoiceInput() {
@@ -217,8 +225,20 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void refreshEmpty() {
-        empty.setVisibility(memos.isEmpty() ? View.VISIBLE : View.GONE);
+    private void openOverlaySettings() {
+        try {
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
+        }
+    }
+
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 3);
+        }
     }
 
     private int dp(int value) {
@@ -229,17 +249,17 @@ public class MainActivity extends Activity {
 
         @Override
         public int getCount() {
-            return memos.size();
+            return visible.size();
         }
 
         @Override
         public Memo getItem(int position) {
-            return memos.get(position);
+            return visible.get(position);
         }
 
         @Override
         public long getItemId(int position) {
-            return memos.get(position).id;
+            return visible.get(position).id;
         }
 
         @Override
@@ -251,10 +271,19 @@ public class MainActivity extends Activity {
                 tv = new TextView(MainActivity.this);
                 tv.setPadding(dp(8), dp(14), dp(8), dp(14));
                 tv.setTextSize(17f);
-                tv.setTextColor(0xFF111111);
             }
             Memo memo = getItem(position);
-            tv.setText(memo.important ? "★ " + memo.text : memo.text);
+            tv.setText(memo.text);
+            if (memo.isDone()) {
+                tv.setTextColor(0xFFB0B4B8);
+                tv.setPaintFlags(tv.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+            } else if (memo.muted) {
+                tv.setTextColor(0xFF9AA0A6);
+                tv.setPaintFlags(tv.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+            } else {
+                tv.setTextColor(0xFF111111);
+                tv.setPaintFlags(tv.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+            }
             return tv;
         }
     }

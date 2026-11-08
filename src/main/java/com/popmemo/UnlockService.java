@@ -12,17 +12,17 @@ import android.os.IBinder;
 import android.provider.Settings;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
- * 常驻前台服务：监听「解锁完成」这个广播，到点就弹卡片。
- * 前台服务必须有通知，那是安卓的硬性要求，不是我们想打扰你。
+ * 常驻前台服务：监听「解锁完成」，每次解锁都把最久没露面的 3 条摆出来。
+ * 不节流、不开关——没办完就一直出现，这是这个 App 的全部意义。
  */
 public class UnlockService extends Service {
 
-    public static final String PREF_ENABLED = "service_enabled";
     private static final String CHANNEL_ID = "unlock";
-    private static final long THROTTLE_MS = 30 * 60 * 1000L;
+    private static final int MAX_ITEMS = 3;
 
     private UnlockOverlay overlay;
     private BroadcastReceiver unlockReceiver;
@@ -35,7 +35,7 @@ public class UnlockService extends Service {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if (Intent.ACTION_USER_PRESENT.equals(intent.getAction())) {
-                    showIfDue();
+                    showDue();
                 }
             }
         };
@@ -44,56 +44,80 @@ public class UnlockService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(1, buildNotification());
+        startForeground(1, buildNotification(pendingCount()));
         return START_STICKY;
     }
 
-    private Notification buildNotification() {
-        NotificationChannel channel =
-                new NotificationChannel(CHANNEL_ID, "解锁提醒", NotificationManager.IMPORTANCE_LOW);
-        channel.setDescription("解锁时弹出重要事项");
-        NotificationManager manager = getSystemService(NotificationManager.class);
-        if (manager != null) {
-            manager.createNotificationChannel(channel);
+    private List<Memo> pending() {
+        List<Memo> out = new ArrayList<>();
+        for (Memo memo : new MemoStore(this).load()) {
+            if (!memo.muted && !memo.isDone()) {
+                out.add(memo);
+            }
         }
-        return new Notification.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-                .setContentTitle("解锁时会提醒你")
-                .setContentText("重要的事，解锁就弹")
-                .setOngoing(true)
-                .build();
+        return out;
     }
 
-    /** 只弹「重要」且距上次弹出超过 30 分钟的那些。 */
-    private void showIfDue() {
-        if (!Settings.canDrawOverlays(this)) {
-            return;
-        }
-        if (overlay.isShowing()) {
+    private int pendingCount() {
+        return pending().size();
+    }
+
+    /** 每次解锁都摆一次：取最久没露面的 3 条。 */
+    private void showDue() {
+        if (!Settings.canDrawOverlays(this) || overlay.isShowing()) {
             return;
         }
 
         MemoStore store = new MemoStore(this);
         List<Memo> all = store.load();
-        long now = System.currentTimeMillis();
-
-        List<Memo> due = new ArrayList<>();
+        List<Memo> active = new ArrayList<>();
         for (Memo memo : all) {
-            if (memo.important && now - memo.lastShownAt >= THROTTLE_MS) {
-                due.add(memo);
+            if (!memo.muted && !memo.isDone()) {
+                active.add(memo);
             }
         }
-        if (due.isEmpty()) {
+        if (active.isEmpty()) {
+            updateNotification(0);
             return;
         }
+
+        Collections.sort(active, (a, b) -> Long.compare(a.lastSeenAt, b.lastSeenAt));
+        List<Memo> due = new ArrayList<>(active.subList(0, Math.min(MAX_ITEMS, active.size())));
 
         if (!overlay.show(due)) {
             return;
         }
+
+        long now = System.currentTimeMillis();
         for (Memo memo : due) {
-            memo.lastShownAt = now;
+            memo.lastSeenAt = now;
         }
         store.save(all);
+        updateNotification(active.size());
+    }
+
+    private Notification buildNotification(int pending) {
+        NotificationChannel channel =
+                new NotificationChannel(CHANNEL_ID, "解锁提醒", NotificationManager.IMPORTANCE_LOW);
+        channel.setDescription("解锁时摆出没办完的事");
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) {
+            manager.createNotificationChannel(channel);
+        }
+        String text = pending > 0 ? "还有 " + pending + " 件事没办" : "都办完了";
+        return new Notification.Builder(this, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setContentTitle("PopMemo")
+                .setContentText(text)
+                .setOngoing(true)
+                .build();
+    }
+
+    private void updateNotification(int pending) {
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) {
+            manager.notify(1, buildNotification(pending));
+        }
     }
 
     @Override
