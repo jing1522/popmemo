@@ -19,8 +19,15 @@ public class Memo {
     public long doneAt;
     /** 截止日（那一天的零点）。0 表示没设。越近，露面优先级越高。 */
     public long dueAt;
+    /** 小分类标签，比如「学习」。空串表示没分类。 */
+    public String tag;
 
     public Memo(long id, String text, boolean muted, long createdAt, long lastSeenAt, long doneAt, long dueAt) {
+        this(id, text, muted, createdAt, lastSeenAt, doneAt, dueAt, "");
+    }
+
+    public Memo(long id, String text, boolean muted, long createdAt, long lastSeenAt, long doneAt,
+                long dueAt, String tag) {
         this.id = id;
         this.text = text;
         this.muted = muted;
@@ -28,6 +35,7 @@ public class Memo {
         this.lastSeenAt = lastSeenAt;
         this.doneAt = doneAt;
         this.dueAt = dueAt;
+        this.tag = tag == null ? "" : tag;
     }
 
     public boolean isDone() {
@@ -90,6 +98,7 @@ public class Memo {
             o.put("lastSeenAt", lastSeenAt);
             o.put("doneAt", doneAt);
             o.put("dueAt", dueAt);
+            o.put("tag", tag);
         } catch (JSONException ignored) {
         }
         return o;
@@ -103,6 +112,7 @@ public class Memo {
                 o.optLong("createdAt"),
                 o.optLong("lastSeenAt"),
                 o.optLong("doneAt"),
-                o.optLong("dueAt"));
+                o.optLong("dueAt"),
+                o.optString("tag"));
     }
 }

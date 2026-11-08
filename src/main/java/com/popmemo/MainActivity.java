@@ -11,6 +11,8 @@ import android.graphics.Paint;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.speech.RecognizerIntent;
 import android.text.Spannable;
@@ -57,6 +59,17 @@ public class MainActivity extends Activity {
     private TextView empty;
     private TextView doneFooter;
     private View permissionBanner;
+    private TextView undoBar;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private Memo lastDeleted;
+    private int lastDeletedIndex;
+    private final Runnable hideUndoRunnable = () -> {
+        lastDeleted = null;
+        undoBar.setVisibility(View.GONE);
+    };
+
+    private static final String[] TAGS = {"学习", "生活", "娱乐", "工作"};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,6 +86,8 @@ public class MainActivity extends Activity {
         permissionBanner = findViewById(R.id.permission_banner);
         Button voice = findViewById(R.id.voice);
         Button grantOverlay = findViewById(R.id.grant_overlay);
+
+        undoBar = findViewById(R.id.undo_bar);
 
         adapter = new MemoAdapter();
         list.setAdapter(adapter);
@@ -108,6 +123,7 @@ public class MainActivity extends Activity {
 
         voice.setOnClickListener(v -> startVoiceInput());
         grantOverlay.setOnClickListener(v -> openOverlaySettings());
+        findViewById(R.id.overflow).setOnClickListener(v -> showCleanupMenu());
         doneFooter.setOnClickListener(v -> {
             showDone = !showDone;
             refresh();
@@ -148,6 +164,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        handler.removeCallbacks(hideUndoRunnable);
         MemoStore.setListener(null);
         super.onDestroy();
     }
@@ -240,13 +257,17 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    /** 长按：删除键藏这里，顺便放「不弹了」。 */
+    /** 长按：截止日、分类、删除都放这里。 */
     private void showActions(Memo memo) {
         String[] items;
         if (memo.isDone()) {
-            items = new String[]{"放回待办", "删掉"};
+            items = new String[]{"放回待办", "设个分类", "删掉"};
         } else {
-            items = new String[]{"设个截止日", memo.muted ? "让它也弹出来" : "不弹了，只在列表里", "删掉"};
+            items = new String[]{
+                    "设个截止日",
+                    "设个分类",
+                    memo.muted ? "让它也弹出来" : "不弹了，只在列表里",
+                    "删掉"};
         }
 
         new AlertDialog.Builder(this)
@@ -255,8 +276,12 @@ public class MainActivity extends Activity {
                     if (memo.isDone()) {
                         if (which == 0) {
                             memo.doneAt = 0;
+                        } else if (which == 1) {
+                            pickTag(memo);
+                            return;
                         } else {
-                            all.remove(memo);
+                            deleteMemo(memo);
+                            return;
                         }
                     } else {
                         if (which == 0) {
@@ -264,10 +289,94 @@ public class MainActivity extends Activity {
                             return;
                         }
                         if (which == 1) {
+                            pickTag(memo);
+                            return;
+                        }
+                        if (which == 2) {
                             memo.muted = !memo.muted;
                         } else {
-                            all.remove(memo);
+                            deleteMemo(memo);
+                            return;
                         }
+                    }
+                    store.save(all);
+                    refresh();
+                })
+                .show();
+    }
+
+    private void pickTag(Memo memo) {
+        String[] options = new String[TAGS.length + 1];
+        System.arraycopy(TAGS, 0, options, 0, TAGS.length);
+        options[TAGS.length] = "不要分类";
+
+        new AlertDialog.Builder(this)
+                .setTitle("归到哪一类？")
+                .setItems(options, (dialog, which) -> {
+                    memo.tag = which < TAGS.length ? TAGS[which] : "";
+                    store.save(all);
+                    refresh();
+                })
+                .show();
+    }
+
+    /** 删除要能后悔：6 秒内点一下就能找回来。 */
+    private void deleteMemo(Memo memo) {
+        int index = all.indexOf(memo);
+        if (index < 0) {
+            return;
+        }
+        all.remove(index);
+        store.save(all);
+        refresh();
+
+        lastDeleted = memo;
+        lastDeletedIndex = index;
+        undoBar.setText("已删除「" + memo.text + "」　点这里撤销");
+        undoBar.setVisibility(View.VISIBLE);
+        undoBar.setOnClickListener(v -> {
+            if (lastDeleted != null) {
+                all.add(Math.min(lastDeletedIndex, all.size()), lastDeleted);
+                lastDeleted = null;
+                store.save(all);
+                refresh();
+            }
+            hideUndoBar();
+        });
+        handler.removeCallbacks(hideUndoRunnable);
+        handler.postDelayed(hideUndoRunnable, 6000);
+    }
+
+    private void hideUndoBar() {
+        handler.removeCallbacks(hideUndoRunnable);
+        lastDeleted = null;
+        undoBar.setVisibility(View.GONE);
+    }
+
+    /** 「⋯」里的清理动作。 */
+    private void showCleanupMenu() {
+        new AlertDialog.Builder(this)
+                .setTitle("清理")
+                .setItems(new String[]{"清空已经办完的", "清空全部记录"}, (dialog, which) ->
+                        confirmClear(which == 0))
+                .show();
+    }
+
+    private void confirmClear(boolean onlyDone) {
+        String what = onlyDone ? "所有办完的记录" : "全部备忘录";
+        new AlertDialog.Builder(this)
+                .setTitle("清掉" + what + "？")
+                .setMessage("这一步没有撤销。")
+                .setNegativeButton("算了", null)
+                .setPositiveButton("清掉", (dialog, which) -> {
+                    if (onlyDone) {
+                        for (int i = all.size() - 1; i >= 0; i--) {
+                            if (all.get(i).isDone()) {
+                                all.remove(i);
+                            }
+                        }
+                    } else {
+                        all.clear();
                     }
                     store.save(all);
                     refresh();
@@ -410,7 +519,17 @@ public class MainActivity extends Activity {
             long now = System.currentTimeMillis();
             String due = memo.dueLabel(now);
 
-            SpannableStringBuilder sb = new SpannableStringBuilder(memo.text);
+            SpannableStringBuilder sb = new SpannableStringBuilder();
+            if (!memo.tag.isEmpty()) {
+                int tagStart = sb.length();
+                sb.append(memo.tag);
+                sb.setSpan(new RelativeSizeSpan(0.75f), tagStart, sb.length(),
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                sb.setSpan(new ForegroundColorSpan(0xFF3B82F6), tagStart, sb.length(),
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                sb.append("  ");
+            }
+            sb.append(memo.text);
             if (due != null && !memo.isDone()) {
                 sb.append("   ");
                 int start = sb.length();

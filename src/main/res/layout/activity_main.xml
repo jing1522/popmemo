@@ -29,6 +29,13 @@
             android:layout_height="wrap_content"
             android:minWidth="0dp"
             android:text="@string/voice" />
+
+        <Button
+            android:id="@+id/overflow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:text="@string/overflow" />
     </LinearLayout>
 
     <LinearLayout
@@ -74,6 +81,16 @@
         android:layout_weight="1"
         android:divider="#14000000"
         android:dividerHeight="1dp" />
+
+    <TextView
+        android:id="@+id/undo_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp"
+        android:gravity="center"
+        android:textColor="#B3261E"
+        android:textSize="14sp"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/done_footer"

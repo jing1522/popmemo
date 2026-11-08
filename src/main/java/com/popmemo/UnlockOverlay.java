@@ -201,7 +201,17 @@ public class UnlockOverlay {
 
         long now = System.currentTimeMillis();
         String due = memo.dueLabel(now);
-        SpannableStringBuilder sb = new SpannableStringBuilder(memo.text);
+        SpannableStringBuilder sb = new SpannableStringBuilder();
+        if (!memo.tag.isEmpty()) {
+            int tagStart = sb.length();
+            sb.append(memo.tag);
+            sb.setSpan(new RelativeSizeSpan(0.75f), tagStart, sb.length(),
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            sb.setSpan(new ForegroundColorSpan(0xFF8FB4FF), tagStart, sb.length(),
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            sb.append("  ");
+        }
+        sb.append(memo.text);
         if (due != null) {
             sb.append("\n");
             int start = sb.length();
