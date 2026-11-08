@@ -24,7 +24,7 @@ import java.util.List;
 public class UnlockService extends Service {
 
     private static final String CHANNEL_ID = "unlock";
-    private static final int MAX_ITEMS = 3;
+    private static final int MAX_ITEMS = 5;
 
     private UnlockOverlay overlay;
     private BroadcastReceiver unlockReceiver;
@@ -113,9 +113,13 @@ public class UnlockService extends Service {
             return Long.compare(a.lastSeenAt, b.lastSeenAt);
         });
 
-        List<Memo> due = new ArrayList<>(active.subList(0, Math.min(MAX_ITEMS, active.size())));
+        if (!overlay.show(active, new UnlockOverlay.Listener() {
+            @Override
+            public void onShown(Memo memo) {
+                memo.lastSeenAt = System.currentTimeMillis();
+                store.save(all);
+            }
 
-        if (!overlay.show(due, new UnlockOverlay.Listener() {
             @Override
             public void onDone(Memo memo) {
                 memo.doneAt = System.currentTimeMillis();
@@ -142,10 +146,6 @@ public class UnlockService extends Service {
             return;
         }
 
-        for (Memo memo : due) {
-            memo.lastSeenAt = now;
-        }
-        store.save(all);
         updateNotification(active);
     }
 

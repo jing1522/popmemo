@@ -18,15 +18,19 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 解锁后盖在最上层的那几张卡片。每条单独滑：
- * 右滑 = 办完（消失），左滑 = 还没（消失，下次再排上来），点旁边空白 = 只看一眼。
+ * 右滑 = 办完，左滑 = 还没，点旁边空白 = 只看一眼。
+ * 一次最多摆 5 张，滑掉一张就从队列里补一张，补到没有为止。
  */
 public class UnlockOverlay {
 
     public interface Listener {
+        void onShown(Memo memo);
+
         void onDone(Memo memo);
 
         void onLater(Memo memo);
@@ -34,8 +38,11 @@ public class UnlockOverlay {
         void onAdd();
     }
 
-    private static final int CARD_BG = 0xFF1C1C1E;
-    private static final int ADD_BG = 0xFF2C2C2E;
+    private static final int VISIBLE_MAX = 5;
+
+    private static final int CARD_BG = 0xFF2C2C2E;
+    private static final int PANEL_BG = 0xFF151517;
+    private static final int ADD_BG = 0xFF3A3A3C;
     private static final int TEXT_MAIN = 0xFFF2F2F7;
     private static final int TEXT_DIM = 0xFF8E8E93;
     private static final int GREEN = 0xFF34C759;
@@ -43,11 +50,14 @@ public class UnlockOverlay {
 
     private final Context context;
     private final WindowManager wm;
+    private final List<Memo> queue = new ArrayList<>();
+
     private View root;
     private LinearLayout stack;
     private TextView hint;
     private boolean dismissed;
     private Listener listener;
+    private int nextIndex;
     private int screenWidth;
 
     public UnlockOverlay(Context context) {
@@ -59,20 +69,30 @@ public class UnlockOverlay {
         return root != null && !dismissed && root.isAttachedToWindow();
     }
 
-    /** 显示成功返回 true。 */
-    public boolean show(List<Memo> memos, Listener listener) {
-        if (isShowing() || memos.isEmpty()) {
+    /** queue 是全部待办（已排好序），这里自己决定先摆几张、滑完补哪张。 */
+    public boolean show(List<Memo> queue, Listener listener) {
+        if (isShowing() || queue.isEmpty()) {
             return false;
         }
         this.listener = listener;
         this.dismissed = false;
         this.screenWidth = context.getResources().getDisplayMetrics().widthPixels;
 
+        this.queue.clear();
+        this.queue.addAll(queue);
+        this.nextIndex = 0;
+
         FrameLayout frame = new FrameLayout(context);
         frame.setBackgroundColor(0x99000000);
 
         LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
+        int panelPad = dp(14);
+        column.setPadding(panelPad, panelPad, panelPad, panelPad);
+        GradientDrawable panelBg = new GradientDrawable();
+        panelBg.setColor(PANEL_BG);
+        panelBg.setCornerRadius(dp(24));
+        column.setBackground(panelBg);
 
         TextView title = new TextView(context);
         title.setText("别忘了");
@@ -83,10 +103,6 @@ public class UnlockOverlay {
         stack = new LinearLayout(context);
         stack.setOrientation(LinearLayout.VERTICAL);
         column.addView(stack);
-
-        for (Memo memo : memos) {
-            stack.addView(buildCard(memo));
-        }
 
         LinearLayout bottom = new LinearLayout(context);
         bottom.setOrientation(LinearLayout.HORIZONTAL);
@@ -126,7 +142,10 @@ public class UnlockOverlay {
         FrameLayout.LayoutParams columnParams = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT);
-        columnParams.gravity = Gravity.CENTER;
+        // 整体靠上，不在屏幕正中。
+        columnParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        columnParams.topMargin = Math.round(
+                context.getResources().getDisplayMetrics().heightPixels * 0.13f);
         columnParams.leftMargin = dp(20);
         columnParams.rightMargin = dp(20);
         frame.addView(column, columnParams);
@@ -149,6 +168,30 @@ public class UnlockOverlay {
         } catch (Exception e) {
             root = null;
             return false;
+        }
+
+        for (int i = 0; i < VISIBLE_MAX; i++) {
+            addNextCard(false);
+        }
+        return true;
+    }
+
+    /** 队列里还有就补一张上来。 */
+    private boolean addNextCard(boolean animate) {
+        if (nextIndex >= queue.size()) {
+            return false;
+        }
+        Memo memo = queue.get(nextIndex++);
+        TextView card = buildCard(memo);
+        stack.addView(card);
+
+        if (animate) {
+            card.setAlpha(0f);
+            card.setTranslationY(-dp(14));
+            card.animate().alpha(1f).translationY(0f).setDuration(160).start();
+        }
+        if (listener != null) {
+            listener.onShown(memo);
         }
         return true;
     }
@@ -174,7 +217,7 @@ public class UnlockOverlay {
         card.setTextSize(18);
         card.setMaxLines(4);
         card.setEllipsize(TextUtils.TruncateAt.END);
-        int pad = dp(18);
+        int pad = dp(16);
         card.setPadding(pad, pad, pad, pad);
 
         GradientDrawable background = new GradientDrawable();
@@ -185,7 +228,7 @@ public class UnlockOverlay {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        params.bottomMargin = dp(10);
+        params.bottomMargin = dp(8);
         card.setLayoutParams(params);
         card.setOnTouchListener(new Drag(card, memo));
         return card;
@@ -208,6 +251,7 @@ public class UnlockOverlay {
         dismissed = true;
         View view = root;
         root = null;
+        queue.clear();
         try {
             wm.removeView(view);
         } catch (Exception ignored) {
@@ -215,11 +259,10 @@ public class UnlockOverlay {
     }
 
     private void flyOut(View card, Memo memo, boolean done) {
-        hint.setText(done ? "办完了" : "还没办");
         card.animate()
                 .translationX((done ? 1 : -1) * screenWidth * 1.3f)
                 .alpha(0f)
-                .setDuration(180)
+                .setDuration(170)
                 .withEndAction(() -> {
                     if (stack != null) {
                         stack.removeView(card);
@@ -229,10 +272,13 @@ public class UnlockOverlay {
                     } else {
                         listener.onLater(memo);
                     }
-                    if (stack == null || stack.getChildCount() == 0) {
-                        close();
-                    } else {
+                    boolean refilled = stack != null && addNextCard(true);
+                    if (hint != null) {
                         hint.setText("← 还没    办完 →");
+                        hint.setTextColor(TEXT_DIM);
+                    }
+                    if (!refilled && (stack == null || stack.getChildCount() == 0)) {
+                        close();
                     }
                 })
                 .start();
