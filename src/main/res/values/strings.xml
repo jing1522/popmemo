@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- PopMemo 本体 -->
     <string name="app_name">PopMemo</string>
     <string name="hint_input">写点什么，回车就存</string>
     <string name="voice">语音</string>
@@ -12,4 +13,11 @@
     <string name="swipe_done">办完了</string>
     <string name="swipe_later">还没办</string>
     <string name="add">＋</string>
+
+    <!-- 课程表（并行窗口加的，保留不动） -->
+    <string name="switch_label">解锁时弹出重要事项</string>
+    <string name="open_week">看本周的空余时间 →</string>
+    <string name="add_course">＋ 加一门课</string>
+    <string name="to">到</string>
+    <string name="course_hint">课名，比如 高等数学</string>
 </resources>
