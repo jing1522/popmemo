@@ -5,7 +5,11 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.text.Spannable;
+import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.RelativeSizeSpan;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -35,6 +39,7 @@ public class UnlockOverlay {
     private static final int TEXT_MAIN = 0xFFF2F2F7;
     private static final int TEXT_DIM = 0xFF8E8E93;
     private static final int GREEN = 0xFF34C759;
+    private static final int URGENT = 0xFFFF453A;
 
     private final Context context;
     private final WindowManager wm;
@@ -150,10 +155,24 @@ public class UnlockOverlay {
 
     private TextView buildCard(Memo memo) {
         TextView card = new TextView(context);
-        card.setText(memo.text);
+
+        long now = System.currentTimeMillis();
+        String due = memo.dueLabel(now);
+        SpannableStringBuilder sb = new SpannableStringBuilder(memo.text);
+        if (due != null) {
+            sb.append("\n");
+            int start = sb.length();
+            sb.append(due);
+            sb.setSpan(new RelativeSizeSpan(0.8f), start, sb.length(),
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            sb.setSpan(new ForegroundColorSpan(memo.daysLeft(now) <= 0 ? URGENT : TEXT_DIM),
+                    start, sb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+
+        card.setText(sb);
         card.setTextColor(TEXT_MAIN);
         card.setTextSize(18);
-        card.setMaxLines(3);
+        card.setMaxLines(4);
         card.setEllipsize(TextUtils.TruncateAt.END);
         int pad = dp(18);
         card.setPadding(pad, pad, pad, pad);

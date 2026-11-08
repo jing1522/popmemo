@@ -3,6 +3,7 @@ package com.popmemo;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.DatePickerDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -12,6 +13,10 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.speech.RecognizerIntent;
+import android.text.Spannable;
+import android.text.SpannableStringBuilder;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.RelativeSizeSpan;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -165,6 +170,53 @@ public class MainActivity extends Activity {
         startForegroundService(new Intent(this, UnlockService.class));
     }
 
+    /** 截止日：只给几个最常用的档，不用去翻日历。 */
+    private void pickDeadline(Memo memo) {
+        String[] options = {"今天", "明天", "三天后", "一周后", "选个日期…", "不要日期"};
+        new AlertDialog.Builder(this)
+                .setTitle("哪天之前要办完？")
+                .setItems(options, (dialog, which) -> {
+                    switch (which) {
+                        case 0:
+                            memo.dueAt = Memo.dayOffset(0);
+                            break;
+                        case 1:
+                            memo.dueAt = Memo.dayOffset(1);
+                            break;
+                        case 2:
+                            memo.dueAt = Memo.dayOffset(3);
+                            break;
+                        case 3:
+                            memo.dueAt = Memo.dayOffset(7);
+                            break;
+                        case 4:
+                            pickCustomDate(memo);
+                            return;
+                        default:
+                            memo.dueAt = 0;
+                            break;
+                    }
+                    store.save(all);
+                    refresh();
+                })
+                .show();
+    }
+
+    private void pickCustomDate(Memo memo) {
+        Calendar c = Calendar.getInstance();
+        if (memo.dueAt > 0) {
+            c.setTimeInMillis(memo.dueAt);
+        }
+        new DatePickerDialog(this, (view, year, month, dayOfMonth) -> {
+            Calendar picked = Calendar.getInstance();
+            picked.set(year, month, dayOfMonth, 0, 0, 0);
+            picked.set(Calendar.MILLISECOND, 0);
+            memo.dueAt = picked.getTimeInMillis();
+            store.save(all);
+            refresh();
+        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show();
+    }
+
     /** 点一下：改字。写备忘录最常发生的错就是「写错一个字」，得能改。 */
     private void editMemo(Memo memo) {
         EditText editor = new EditText(this);
@@ -194,7 +246,7 @@ public class MainActivity extends Activity {
         if (memo.isDone()) {
             items = new String[]{"放回待办", "删掉"};
         } else {
-            items = new String[]{memo.muted ? "让它也弹出来" : "不弹了，只在列表里", "删掉"};
+            items = new String[]{"设个截止日", memo.muted ? "让它也弹出来" : "不弹了，只在列表里", "删掉"};
         }
 
         new AlertDialog.Builder(this)
@@ -208,6 +260,10 @@ public class MainActivity extends Activity {
                         }
                     } else {
                         if (which == 0) {
+                            pickDeadline(memo);
+                            return;
+                        }
+                        if (which == 1) {
                             memo.muted = !memo.muted;
                         } else {
                             all.remove(memo);
@@ -225,7 +281,7 @@ public class MainActivity extends Activity {
             return;
         }
         long now = System.currentTimeMillis();
-        all.add(0, new Memo(now, text, false, now, 0L, 0L));
+        all.add(0, new Memo(now, text, false, now, 0L, 0L, 0L));
         store.save(all);
         input.setText("");
         refresh();
@@ -247,7 +303,18 @@ public class MainActivity extends Activity {
                 active.add(memo);
             }
         }
-        Collections.sort(active, (a, b) -> Long.compare(b.createdAt, a.createdAt));
+        // 有截止日的排前面（越近越前），其余按新写的在上。
+        Collections.sort(active, (a, b) -> {
+            boolean aDue = a.dueAt > 0;
+            boolean bDue = b.dueAt > 0;
+            if (aDue != bDue) {
+                return aDue ? -1 : 1;
+            }
+            if (aDue) {
+                return Long.compare(a.dueAt, b.dueAt);
+            }
+            return Long.compare(b.createdAt, a.createdAt);
+        });
         Collections.sort(done, (a, b) -> Long.compare(b.doneAt, a.doneAt));
 
         visible.addAll(active);
@@ -340,7 +407,21 @@ public class MainActivity extends Activity {
                 tv.setTextSize(17f);
             }
             Memo memo = getItem(position);
-            tv.setText(memo.text);
+            long now = System.currentTimeMillis();
+            String due = memo.dueLabel(now);
+
+            SpannableStringBuilder sb = new SpannableStringBuilder(memo.text);
+            if (due != null && !memo.isDone()) {
+                sb.append("   ");
+                int start = sb.length();
+                sb.append(due);
+                sb.setSpan(new RelativeSizeSpan(0.78f), start, sb.length(),
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                boolean urgent = memo.daysLeft(now) <= 0;
+                sb.setSpan(new ForegroundColorSpan(urgent ? 0xFFD93025 : 0xFF9AA0A6),
+                        start, sb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            tv.setText(sb);
             if (memo.isDone()) {
                 tv.setTextColor(0xFFB0B4B8);
                 tv.setPaintFlags(tv.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);

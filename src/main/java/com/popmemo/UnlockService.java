@@ -17,8 +17,9 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 常驻前台服务：监听「解锁完成」，每次解锁都把最久没露面的 3 条摆出来。
- * 不节流、不开关——没办完就一直出现，这是这个 App 的全部意义。
+ * 常驻前台服务：监听「解锁完成」，每次解锁都把最该看见的 3 条摆出来。
+ * 不节流、不开关——没办完就一直出现。
+ * 截止日越近，越优先占卡位；没设日期的按「最久没露面」轮转。
  */
 public class UnlockService extends Service {
 
@@ -45,13 +46,13 @@ public class UnlockService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(1, buildNotification(pendingCount()));
+        startForeground(1, buildNotification(pendingOf(new MemoStore(this).load())));
         return START_STICKY;
     }
 
-    private List<Memo> pending() {
+    private List<Memo> pendingOf(List<Memo> memos) {
         List<Memo> out = new ArrayList<>();
-        for (Memo memo : new MemoStore(this).load()) {
+        for (Memo memo : memos) {
             if (!memo.muted && !memo.isDone()) {
                 out.add(memo);
             }
@@ -59,21 +60,24 @@ public class UnlockService extends Service {
         return out;
     }
 
-    private int pendingCount() {
-        return pending().size();
-    }
-
-    private int countPending(List<Memo> memos) {
-        int count = 0;
-        for (Memo memo : memos) {
-            if (!memo.muted && !memo.isDone()) {
-                count++;
-            }
+    /** 0 = 已过期/今天，1 = 三天内，2 = 一周内，3 = 更远或没设。 */
+    private static int tier(Memo memo, long now) {
+        if (memo.dueAt <= 0) {
+            return 3;
         }
-        return count;
+        int days = memo.daysLeft(now);
+        if (days <= 0) {
+            return 0;
+        }
+        if (days <= 3) {
+            return 1;
+        }
+        if (days <= 7) {
+            return 2;
+        }
+        return 3;
     }
 
-    /** 每次解锁都摆一次：取最久没露面的 3 条。 */
     private void showDue() {
         if (!Settings.canDrawOverlays(this) || overlay.isShowing()) {
             return;
@@ -81,18 +85,34 @@ public class UnlockService extends Service {
 
         MemoStore store = new MemoStore(this);
         List<Memo> all = store.load();
-        List<Memo> active = new ArrayList<>();
-        for (Memo memo : all) {
-            if (!memo.muted && !memo.isDone()) {
-                active.add(memo);
-            }
-        }
+        List<Memo> active = pendingOf(all);
         if (active.isEmpty()) {
-            updateNotification(0);
+            updateNotification(active);
             return;
         }
 
-        Collections.sort(active, (a, b) -> Long.compare(a.lastSeenAt, b.lastSeenAt));
+        long now = System.currentTimeMillis();
+        Collections.sort(active, (a, b) -> {
+            int ta = tier(a, now);
+            int tb = tier(b, now);
+            if (ta != tb) {
+                return Integer.compare(ta, tb);
+            }
+            // 同一档里，有截止日的先于没截止日的。
+            boolean aDue = a.dueAt > 0;
+            boolean bDue = b.dueAt > 0;
+            if (aDue != bDue) {
+                return aDue ? -1 : 1;
+            }
+            if (aDue) {
+                int byDue = Long.compare(a.dueAt, b.dueAt);
+                if (byDue != 0) {
+                    return byDue;
+                }
+            }
+            return Long.compare(a.lastSeenAt, b.lastSeenAt);
+        });
+
         List<Memo> due = new ArrayList<>(active.subList(0, Math.min(MAX_ITEMS, active.size())));
 
         if (!overlay.show(due, new UnlockOverlay.Listener() {
@@ -101,7 +121,7 @@ public class UnlockService extends Service {
                 memo.doneAt = System.currentTimeMillis();
                 store.save(all);
                 MemoStore.notifyChanged();
-                updateNotification(countPending(all));
+                updateNotification(pendingOf(all));
             }
 
             @Override
@@ -115,21 +135,21 @@ public class UnlockService extends Service {
             public void onAdd() {
                 Intent intent = new Intent(UnlockService.this, MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                intent.putExtra(MainActivity.EXTRA_FOCUS_INPUT, true);
                 startActivity(intent);
             }
         })) {
             return;
         }
 
-        long now = System.currentTimeMillis();
         for (Memo memo : due) {
             memo.lastSeenAt = now;
         }
         store.save(all);
-        updateNotification(active.size());
+        updateNotification(active);
     }
 
-    private Notification buildNotification(int pending) {
+    private Notification buildNotification(List<Memo> pending) {
         NotificationChannel channel =
                 new NotificationChannel(CHANNEL_ID, "解锁提醒", NotificationManager.IMPORTANCE_LOW);
         channel.setDescription("解锁时摆出没办完的事");
@@ -137,7 +157,23 @@ public class UnlockService extends Service {
         if (manager != null) {
             manager.createNotificationChannel(channel);
         }
-        String text = pending > 0 ? "还有 " + pending + " 件事没办" : "都办完了";
+
+        long now = System.currentTimeMillis();
+        int dueToday = 0;
+        for (Memo memo : pending) {
+            if (memo.dueAt > 0 && memo.daysLeft(now) <= 0) {
+                dueToday++;
+            }
+        }
+
+        String text;
+        if (pending.isEmpty()) {
+            text = "都办完了";
+        } else if (dueToday > 0) {
+            text = "还有 " + pending.size() + " 件事，其中 " + dueToday + " 件今天要交";
+        } else {
+            text = "还有 " + pending.size() + " 件事没办";
+        }
 
         Intent open = new Intent(this, MainActivity.class);
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -160,7 +196,7 @@ public class UnlockService extends Service {
                 .build();
     }
 
-    private void updateNotification(int pending) {
+    private void updateNotification(List<Memo> pending) {
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) {
             manager.notify(1, buildNotification(pending));
