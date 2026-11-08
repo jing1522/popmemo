@@ -12,9 +12,12 @@ import android.content.IntentFilter;
 import android.os.IBinder;
 import android.provider.Settings;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 常驻前台服务：监听「解锁完成」，每次解锁都把最该看见的 3 条摆出来。
@@ -25,6 +28,13 @@ public class UnlockService extends Service {
 
     private static final String CHANNEL_ID = "unlock";
     private static final int MAX_ITEMS = 5;
+
+    /** 通知上的两个动作。 */
+    public static final String ACTION_SNOOZE = "com.popmemo.SNOOZE";
+    public static final String ACTION_UNSNOOZE = "com.popmemo.UNSNOOZE";
+
+    private static final String PREF_SNOOZE_UNTIL = "snooze_until";
+    private static final long SNOOZE_MS = 60 * 60 * 1000L;
 
     private UnlockOverlay overlay;
     private BroadcastReceiver unlockReceiver;
@@ -46,8 +56,22 @@ public class UnlockService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        String action = intent == null ? null : intent.getAction();
+        if (ACTION_SNOOZE.equals(action)) {
+            prefs().edit().putLong(PREF_SNOOZE_UNTIL, System.currentTimeMillis() + SNOOZE_MS).apply();
+        } else if (ACTION_UNSNOOZE.equals(action)) {
+            prefs().edit().remove(PREF_SNOOZE_UNTIL).apply();
+        }
         startForeground(1, buildNotification(pendingOf(new MemoStore(this).load())));
         return START_STICKY;
+    }
+
+    private android.content.SharedPreferences prefs() {
+        return getSharedPreferences("popmemo", MODE_PRIVATE);
+    }
+
+    private long snoozeUntil() {
+        return prefs().getLong(PREF_SNOOZE_UNTIL, 0L);
     }
 
     private List<Memo> pendingOf(List<Memo> memos) {
@@ -79,6 +103,9 @@ public class UnlockService extends Service {
     }
 
     private void showDue() {
+        if (System.currentTimeMillis() < snoozeUntil()) {
+            return;
+        }
         if (!Settings.canDrawOverlays(this) || overlay.isShowing()) {
             return;
         }
@@ -166,8 +193,14 @@ public class UnlockService extends Service {
             }
         }
 
+        long until = snoozeUntil();
+        boolean snoozed = until > System.currentTimeMillis();
+
         String text;
-        if (pending.isEmpty()) {
+        if (snoozed) {
+            String when = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(until));
+            text = "静默到 " + when + " · 还有 " + pending.size() + " 件没办";
+        } else if (pending.isEmpty()) {
             text = "都办完了";
         } else if (dueToday > 0) {
             text = "还有 " + pending.size() + " 件事，其中 " + dueToday + " 件今天要交";
@@ -186,12 +219,19 @@ public class UnlockService extends Service {
         PendingIntent quickIntent = PendingIntent.getActivity(this, 2, quick,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+        Intent snooze = new Intent(this, UnlockService.class);
+        snooze.setAction(snoozed ? ACTION_UNSNOOZE : ACTION_SNOOZE);
+        PendingIntent snoozeIntent = PendingIntent.getService(this, 3, snooze,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
         return new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentTitle("PopMemo")
                 .setContentText(text)
                 .setContentIntent(openIntent)
                 .addAction(android.R.drawable.ic_menu_add, "写一条", quickIntent)
+                .addAction(android.R.drawable.ic_menu_close_clear_cancel,
+                        snoozed ? "取消静默" : "静默 1 小时", snoozeIntent)
                 .setOngoing(true)
                 .build();
     }
