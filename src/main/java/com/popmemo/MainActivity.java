@@ -4,7 +4,6 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
-import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Paint;
@@ -14,7 +13,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
-import android.speech.RecognizerIntent;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.style.ForegroundColorSpan;
@@ -38,8 +36,6 @@ import java.util.Collections;
 import java.util.List;
 
 public class MainActivity extends Activity {
-
-    private static final int REQ_SPEECH = 1;
 
     /** 从常驻通知的「写一条」进来时，直接弹键盘。 */
     public static final String EXTRA_FOCUS_INPUT = "focus_input";
@@ -84,7 +80,6 @@ public class MainActivity extends Activity {
         empty = findViewById(R.id.empty);
         doneFooter = findViewById(R.id.done_footer);
         permissionBanner = findViewById(R.id.permission_banner);
-        Button voice = findViewById(R.id.voice);
         Button grantOverlay = findViewById(R.id.grant_overlay);
 
         undoBar = findViewById(R.id.undo_bar);
@@ -121,7 +116,6 @@ public class MainActivity extends Activity {
             return false;
         });
 
-        voice.setOnClickListener(v -> startVoiceInput());
         grantOverlay.setOnClickListener(v -> openOverlaySettings());
         findViewById(R.id.overflow).setOnClickListener(v -> showCleanupMenu());
         doneFooter.setOnClickListener(v -> {
@@ -441,30 +435,6 @@ public class MainActivity extends Activity {
             doneFooter.setText(showDone
                     ? "收起"
                     : "办完了 " + done.size() + " 件 · 点开看");
-        }
-    }
-
-    private void startVoiceInput() {
-        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN");
-        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "说，我在听");
-        try {
-            startActivityForResult(intent, REQ_SPEECH);
-        } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, "这台手机没有语音识别", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQ_SPEECH && resultCode == RESULT_OK && data != null) {
-            ArrayList<String> results = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
-            if (results != null && !results.isEmpty()) {
-                input.setText(results.get(0));
-                input.setSelection(input.getText().length());
-            }
         }
     }
 

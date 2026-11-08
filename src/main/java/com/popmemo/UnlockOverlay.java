@@ -94,11 +94,25 @@ public class UnlockOverlay {
         panelBg.setCornerRadius(dp(24));
         column.setBackground(panelBg);
 
+        LinearLayout header = new LinearLayout(context);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
         TextView title = new TextView(context);
         title.setText("别忘了");
         title.setTextColor(TEXT_DIM);
         title.setTextSize(13);
-        column.addView(title, marginParams(0, 0, 8));
+        title.setLayoutParams(new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        header.addView(title);
+
+        TextView left = new TextView(context);
+        left.setText("今天还剩 " + remainingToday());
+        left.setTextColor(TEXT_DIM);
+        left.setTextSize(13);
+        header.addView(left);
+
+        column.addView(header, marginParams(0, 0, 10));
 
         stack = new LinearLayout(context);
         stack.setOrientation(LinearLayout.VERTICAL);
@@ -292,6 +306,22 @@ public class UnlockOverlay {
                     }
                 })
                 .start();
+    }
+
+    /** 今天还剩多久。不需要你填任何作息，纯粹按钟点算。 */
+    private String remainingToday() {
+        long now = System.currentTimeMillis();
+        long midnight = Memo.startOfDay(now) + 86400000L;
+        int minutes = (int) Math.max(0, (midnight - now) / 60000L);
+        int hours = minutes / 60;
+        int rest = minutes % 60;
+        if (hours == 0) {
+            return rest + " 分钟";
+        }
+        if (rest == 0) {
+            return hours + " 小时";
+        }
+        return hours + " 小时 " + rest + " 分";
     }
 
     private int dp(int value) {
