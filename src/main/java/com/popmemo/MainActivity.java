@@ -64,6 +64,17 @@ public class MainActivity extends Activity {
 
         voice.setOnClickListener(v -> startVoiceInput());
 
+        // 点一下 = 标记 / 取消「重要」，解锁时只弹重要的
+        list.setOnItemClickListener((parent, view, position, id) -> {
+            Memo memo = memos.get(position);
+            memo.important = !memo.important;
+            store.save(memos);
+            adapter.notifyDataSetChanged();
+            Toast.makeText(this,
+                    memo.important ? "已标为重要，解锁时会弹" : "不再弹了",
+                    Toast.LENGTH_SHORT).show();
+        });
+
         // 长按删除
         list.setOnItemLongClickListener((parent, view, position, id) -> {
             Memo memo = memos.get(position);
