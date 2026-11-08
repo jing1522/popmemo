@@ -4,4 +4,5 @@
     <string name="hint_input">写点什么，回车就存</string>
     <string name="voice">语音</string>
     <string name="empty_hint">还没写东西。上面随手写一句，回车。</string>
+    <string name="switch_label">解锁时弹出重要事项</string>
 </resources>

@@ -1,10 +1,16 @@
 package com.popmemo;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.speech.RecognizerIntent;
 import android.view.KeyEvent;
 import android.view.View;
@@ -14,6 +20,7 @@ import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -25,12 +32,15 @@ public class MainActivity extends Activity {
     private static final int REQ_SPEECH = 1;
 
     private MemoStore store;
+    private SharedPreferences prefs;
     private final List<Memo> memos = new ArrayList<>();
     private MemoAdapter adapter;
 
     private EditText input;
     private ListView list;
     private TextView empty;
+    private Switch serviceSwitch;
+    private boolean suppressSwitch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,12 +48,33 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         store = new MemoStore(this);
+        prefs = getSharedPreferences("popmemo", MODE_PRIVATE);
         memos.addAll(store.load());
 
         input = findViewById(R.id.input);
         list = findViewById(R.id.list);
         empty = findViewById(R.id.empty);
         Button voice = findViewById(R.id.voice);
+        serviceSwitch = findViewById(R.id.service_switch);
+
+        serviceSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSwitch) {
+                return;
+            }
+            if (isChecked) {
+                if (!Settings.canDrawOverlays(this)) {
+                    askOverlayPermission();
+                    setSwitchSilently(false);
+                    return;
+                }
+                requestNotificationPermissionIfNeeded();
+                prefs.edit().putBoolean(UnlockService.PREF_ENABLED, true).apply();
+                startForegroundService(new Intent(this, UnlockService.class));
+            } else {
+                prefs.edit().putBoolean(UnlockService.PREF_ENABLED, false).apply();
+                stopService(new Intent(this, UnlockService.class));
+            }
+        });
 
         adapter = new MemoAdapter();
         list.setAdapter(adapter);
@@ -90,6 +121,45 @@ public class MainActivity extends Activity {
                     .show();
             return true;
         });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        boolean enabled = prefs.getBoolean(UnlockService.PREF_ENABLED, false);
+        setSwitchSilently(enabled);
+        if (enabled && Settings.canDrawOverlays(this)) {
+            startForegroundService(new Intent(this, UnlockService.class));
+        }
+    }
+
+    private void setSwitchSilently(boolean checked) {
+        suppressSwitch = true;
+        serviceSwitch.setChecked(checked);
+        suppressSwitch = false;
+    }
+
+    private void askOverlayPermission() {
+        new AlertDialog.Builder(this)
+                .setTitle("还差一个权限")
+                .setMessage("要盖在屏幕最上面弹卡片，得先允许「显示在其他应用上层」。")
+                .setNegativeButton("算了", null)
+                .setPositiveButton("去开启", (d, w) -> {
+                    try {
+                        startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:" + getPackageName())));
+                    } catch (Exception e) {
+                        startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
+                    }
+                })
+                .show();
+    }
+
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 3);
+        }
     }
 
     private void addCurrentInput() {
