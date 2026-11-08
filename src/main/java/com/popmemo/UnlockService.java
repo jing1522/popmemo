@@ -62,6 +62,16 @@ public class UnlockService extends Service {
         return pending().size();
     }
 
+    private int countPending(List<Memo> memos) {
+        int count = 0;
+        for (Memo memo : memos) {
+            if (!memo.muted && !memo.isDone()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     /** 每次解锁都摆一次：取最久没露面的 3 条。 */
     private void showDue() {
         if (!Settings.canDrawOverlays(this) || overlay.isShowing()) {
@@ -84,7 +94,29 @@ public class UnlockService extends Service {
         Collections.sort(active, (a, b) -> Long.compare(a.lastSeenAt, b.lastSeenAt));
         List<Memo> due = new ArrayList<>(active.subList(0, Math.min(MAX_ITEMS, active.size())));
 
-        if (!overlay.show(due)) {
+        if (!overlay.show(due, new UnlockOverlay.Listener() {
+            @Override
+            public void onDone(Memo memo) {
+                memo.doneAt = System.currentTimeMillis();
+                store.save(all);
+                MemoStore.notifyChanged();
+                updateNotification(countPending(all));
+            }
+
+            @Override
+            public void onLater(Memo memo) {
+                memo.lastSeenAt = System.currentTimeMillis();
+                store.save(all);
+                MemoStore.notifyChanged();
+            }
+
+            @Override
+            public void onAdd() {
+                Intent intent = new Intent(UnlockService.this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            }
+        })) {
             return;
         }
 

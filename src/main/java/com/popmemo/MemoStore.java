@@ -17,6 +17,24 @@ public class MemoStore {
 
     private final SharedPreferences sp;
 
+    /** 服务改了数据之后，让前台界面自己刷新一下。 */
+    public interface OnChangeListener {
+        void onChange();
+    }
+
+    private static OnChangeListener listener;
+
+    public static void setListener(OnChangeListener value) {
+        listener = value;
+    }
+
+    public static void notifyChanged() {
+        OnChangeListener current = listener;
+        if (current != null) {
+            current.onChange();
+        }
+    }
+
     public MemoStore(Context context) {
         this.sp = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }

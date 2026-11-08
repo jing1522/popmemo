@@ -122,6 +122,13 @@ public class MainActivity extends Activity {
         });
 
         refresh();
+        MemoStore.setListener(this::refresh);
+    }
+
+    @Override
+    protected void onDestroy() {
+        MemoStore.setListener(null);
+        super.onDestroy();
     }
 
     @Override
@@ -170,6 +177,10 @@ public class MainActivity extends Activity {
     }
 
     private void refresh() {
+        // 一定要重新读一遍：服务在解锁浮层里改了数据，内存里这份是旧的。
+        all.clear();
+        all.addAll(store.load());
+
         visible.clear();
         List<Memo> active = new ArrayList<>();
         List<Memo> done = new ArrayList<>();
