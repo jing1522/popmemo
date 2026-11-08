@@ -7,3 +7,6 @@ local.properties
 *.ap_
 *.log
 .probe.txt
+
+tmp-*.xml
+screenshots/ui.xml

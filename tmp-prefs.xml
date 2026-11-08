@@ -1,5 +1,0 @@
-<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
-<map>
-    <string name="memos">[{"id":1,"text":"交实验报告，周五前","important":true,"createdAt":0,"lastShownAt":0},{"id":2,"text":"给妈妈打电话","important":true,"createdAt":0,"lastShownAt":0},{"id":3,"text":"买牛奶","important":false,"createdAt":0,"lastShownAt":0}]</string>
-    <boolean name="service_enabled" value="false" />
-</map>
