@@ -15,6 +15,7 @@ import android.speech.RecognizerIntent;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.view.inputmethod.EditorInfo;
 import android.widget.BaseAdapter;
 import android.widget.Button;
@@ -56,6 +57,23 @@ public class MainActivity extends Activity {
         empty = findViewById(R.id.empty);
         Button voice = findViewById(R.id.voice);
         serviceSwitch = findViewById(R.id.service_switch);
+
+        // Android 15 强制全面屏，不自己留出状态栏的位置就会被时间压住。
+        View rootView = findViewById(R.id.root);
+        rootView.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top;
+            int bottom;
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+                top = bars.top;
+                bottom = bars.bottom;
+            } else {
+                top = insets.getSystemWindowInsetTop();
+                bottom = insets.getSystemWindowInsetBottom();
+            }
+            v.setPadding(dp(12), dp(12) + top, dp(12), dp(12) + bottom);
+            return insets;
+        });
 
         serviceSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (suppressSwitch) {
