@@ -351,8 +351,28 @@ public class MainActivity extends Activity {
     private void showCleanupMenu() {
         new AlertDialog.Builder(this)
                 .setTitle("清理")
-                .setItems(new String[]{"清空已经办完的", "清空全部记录"}, (dialog, which) ->
-                        confirmClear(which == 0))
+                .setItems(new String[]{"清空已经办完的", "清空全部记录", "关于 PopMemo"}, (dialog, which) -> {
+                    if (which == 2) {
+                        showAbout();
+                    } else {
+                        confirmClear(which == 0);
+                    }
+                })
+                .show();
+    }
+
+    private void showAbout() {
+        String version;
+        try {
+            version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            version = "?";
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("PopMemo " + version)
+                .setMessage("解锁就摆出没办完的事，一划处理掉。\n\n"
+                        + "数据只存在这台手机上，不联网、不上传。")
+                .setPositiveButton("知道了", null)
                 .show();
     }
 
