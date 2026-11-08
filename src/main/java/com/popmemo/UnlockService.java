@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.Uri;
 import android.os.IBinder;
 import android.provider.Settings;
 
@@ -35,6 +36,9 @@ public class UnlockService extends Service {
 
     private static final String PREF_SNOOZE_UNTIL = "snooze_until";
     private static final long SNOOZE_MS = 60 * 60 * 1000L;
+
+    /** 「看网课」跳这里。换平台只改这一行。 */
+    private static final String COURSE_URL = "https://www.bilibili.com/watchlater/";
 
     private UnlockOverlay overlay;
     private BroadcastReceiver unlockReceiver;
@@ -224,12 +228,18 @@ public class UnlockService extends Service {
         PendingIntent snoozeIntent = PendingIntent.getService(this, 3, snooze,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+        Intent course = new Intent(Intent.ACTION_VIEW, Uri.parse(COURSE_URL));
+        course.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent courseIntent = PendingIntent.getActivity(this, 4, course,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
         return new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentTitle("PopMemo")
                 .setContentText(text)
                 .setContentIntent(openIntent)
                 .addAction(android.R.drawable.ic_menu_add, "写一条", quickIntent)
+                .addAction(android.R.drawable.ic_menu_view, "看网课", courseIntent)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel,
                         snoozed ? "取消静默" : "静默 1 小时", snoozeIntent)
                 .setOngoing(true)
