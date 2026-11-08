@@ -104,20 +104,11 @@ public class MainActivity extends Activity {
             refresh();
         });
 
-        // 点一下 = 这条要不要弹（默认弹，点了就变「琐事」）
-        list.setOnItemClickListener((parent, view, position, id) -> toggleMemo(visible.get(position)));
+        // 点一下 = 改字；长按 = 更多（不弹 / 删掉）
+        list.setOnItemClickListener((parent, view, position, id) -> editMemo(visible.get(position)));
 
         list.setOnItemLongClickListener((parent, view, position, id) -> {
-            Memo memo = visible.get(position);
-            new AlertDialog.Builder(this)
-                    .setMessage("彻底删掉「" + memo.text + "」？")
-                    .setNegativeButton("留着", null)
-                    .setPositiveButton("删掉", (d, w) -> {
-                        all.remove(memo);
-                        store.save(all);
-                        refresh();
-                    })
-                    .show();
+            showActions(visible.get(position));
             return true;
         });
 
@@ -149,18 +140,58 @@ public class MainActivity extends Activity {
         startForegroundService(new Intent(this, UnlockService.class));
     }
 
-    private void toggleMemo(Memo memo) {
+    /** 点一下：改字。写备忘录最常发生的错就是「写错一个字」，得能改。 */
+    private void editMemo(Memo memo) {
+        EditText editor = new EditText(this);
+        editor.setText(memo.text);
+        editor.setSelection(editor.getText().length());
+        editor.setPadding(dp(16), dp(12), dp(16), dp(12));
+
+        new AlertDialog.Builder(this)
+                .setTitle("改一下")
+                .setView(editor)
+                .setNegativeButton("算了", null)
+                .setPositiveButton("保存", (d, w) -> {
+                    String text = editor.getText().toString().trim();
+                    if (text.isEmpty()) {
+                        return;
+                    }
+                    memo.text = text;
+                    store.save(all);
+                    refresh();
+                })
+                .show();
+    }
+
+    /** 长按：删除键藏这里，顺便放「不弹了」。 */
+    private void showActions(Memo memo) {
+        String[] items;
         if (memo.isDone()) {
-            memo.doneAt = 0;
-            Toast.makeText(this, "又放回待办了", Toast.LENGTH_SHORT).show();
+            items = new String[]{"放回待办", "删掉"};
         } else {
-            memo.muted = !memo.muted;
-            Toast.makeText(this,
-                    memo.muted ? "不弹了，只在列表里" : "解锁时会弹它",
-                    Toast.LENGTH_SHORT).show();
+            items = new String[]{memo.muted ? "让它也弹出来" : "不弹了，只在列表里", "删掉"};
         }
-        store.save(all);
-        refresh();
+
+        new AlertDialog.Builder(this)
+                .setTitle(memo.text)
+                .setItems(items, (dialog, which) -> {
+                    if (memo.isDone()) {
+                        if (which == 0) {
+                            memo.doneAt = 0;
+                        } else {
+                            all.remove(memo);
+                        }
+                    } else {
+                        if (which == 0) {
+                            memo.muted = !memo.muted;
+                        } else {
+                            all.remove(memo);
+                        }
+                    }
+                    store.save(all);
+                    refresh();
+                })
+                .show();
     }
 
     private void addCurrentInput() {

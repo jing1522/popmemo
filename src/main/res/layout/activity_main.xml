@@ -85,4 +85,14 @@
         android:textSize="13sp"
         android:visibility="gone" />
 
+    <TextView
+        android:id="@+id/list_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="6dp"
+        android:gravity="center"
+        android:text="@string/list_hint"
+        android:textColor="#B0B4B8"
+        android:textSize="12sp" />
+
 </LinearLayout>

@@ -7,6 +7,7 @@
     <string name="need_overlay">还没给「悬浮窗」权限，现在弹不出来。</string>
     <string name="grant">去开启</string>
     <string name="mark_done">右滑办完 · 左滑还没 · 点一下不弹</string>
+    <string name="list_hint">点一下改字 · 长按更多</string>
     <string name="swipe_done">办完了</string>
     <string name="swipe_later">还没办</string>
     <string name="add">＋</string>
