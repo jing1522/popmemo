@@ -3,6 +3,7 @@ package com.popmemo;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -137,10 +138,24 @@ public class UnlockService extends Service {
             manager.createNotificationChannel(channel);
         }
         String text = pending > 0 ? "还有 " + pending + " 件事没办" : "都办完了";
+
+        Intent open = new Intent(this, MainActivity.class);
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent openIntent = PendingIntent.getActivity(this, 1, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        Intent quick = new Intent(this, MainActivity.class);
+        quick.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        quick.putExtra(MainActivity.EXTRA_FOCUS_INPUT, true);
+        PendingIntent quickIntent = PendingIntent.getActivity(this, 2, quick,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
         return new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentTitle("PopMemo")
                 .setContentText(text)
+                .setContentIntent(openIntent)
+                .addAction(android.R.drawable.ic_menu_add, "写一条", quickIntent)
                 .setOngoing(true)
                 .build();
     }

@@ -17,6 +17,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -32,6 +33,9 @@ import java.util.List;
 public class MainActivity extends Activity {
 
     private static final int REQ_SPEECH = 1;
+
+    /** 从常驻通知的「写一条」进来时，直接弹键盘。 */
+    public static final String EXTRA_FOCUS_INPUT = "focus_input";
 
     private MemoStore store;
 
@@ -114,6 +118,27 @@ public class MainActivity extends Activity {
 
         refresh();
         MemoStore.setListener(this::refresh);
+
+        if (getIntent().getBooleanExtra(EXTRA_FOCUS_INPUT, false)) {
+            focusInput();
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.getBooleanExtra(EXTRA_FOCUS_INPUT, false)) {
+            focusInput();
+        }
+    }
+
+    private void focusInput() {
+        input.requestFocus();
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+        }
     }
 
     @Override
