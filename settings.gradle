@@ -14,3 +14,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = 'popmemo'
+
+include ':coursebox'
+project(':coursebox').projectDir = new File(rootDir, 'coursebox')
