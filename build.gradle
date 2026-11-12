@@ -10,8 +10,8 @@ android {
         applicationId 'com.popmemo'
         minSdk 26
         targetSdk 35
-        versionCode 2
-        versionName '0.2'
+        versionCode 4
+        versionName '1.0.0'
     }
 
     compileOptions {
@@ -28,13 +28,14 @@ android {
 }
 
 // 每次编译留一份带版本号+时间戳的 APK，新包装出问题能装回旧版
+def appVersion = android.defaultConfig.versionName
 def keepApk = tasks.register('keepApk') {
     doLast {
         def src = layout.buildDirectory.file("outputs/apk/debug/${project.name}-debug.apk").get().asFile
         if (!src.exists()) return
         def dir = new File('D:/popmemo-releases')
         dir.mkdirs()
-        def base = "${project.name}-${android.defaultConfig.versionName}"
+        def base = "${project.name}-${appVersion}"
         boolean dup = dir.listFiles()?.any { it.name.startsWith(base) && it.length() == src.length() }
         if (dup) return
         def stamp = new java.text.SimpleDateFormat('yyyyMMdd-HHmm').format(new Date())
