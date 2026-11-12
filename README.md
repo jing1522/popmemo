@@ -1,10 +1,10 @@
 # PopMemo
 
-解锁手机 → 摆出没办完的事 → 每条左右一划处理掉。记一条：下拉通知栏点「写一条」，回车即存。
+我的私人定制小工具箱。自己用、自己改、自己管，没有账号、没有网络、没有广告。
 
-只给自己用：没有账号、没有网络、没有广告，APK 约 40 KB。
+## 工具一：PopMemo（根模块）
 
-## 现在能做的
+解锁手机 → 摆出没办完的事 → 每条左右一划处理掉。记一条：下拉通知栏点「写一条」，回车即存。APK 约 40 KB。
 
 - **记**：打开就一个输入框，回车即存；可语音；可从常驻通知的「写一条」直接进
 - **管**：点条目改字，长按设截止日 / 不弹了 / 删掉
@@ -13,20 +13,28 @@
 - **划**：右滑=办完（消失），左滑=还没，点旁边空白=只看一眼
 - **兜底**：常驻通知显示「还有 N 件事」
 
-## 还没验证的（都是真机风险）
+还没验证的（真机风险）：HyperOS 会不会杀后台（需自启动 + 省电无限制）；重启后能否自启；语音识别（模拟器无麦克风）。
 
-- HyperOS 会不会杀后台（需自启动 + 省电无限制）
-- 重启后能否自启（Android 15 大概率拒绝，打开一次 App 即可恢复）
-- 语音识别（模拟器无麦克风）
+## 工具二：课匣 CourseBox（coursebox 模块）
+
+我的私人文件管理器：按「课程/匣子 → 格子」两级收纳，也能直接管理手机存储里的文件。
+
+- **收**：任何 App 分享文件到「课匣」即入库；「批量整理」自动识别文件该进哪门课哪个格子，确认后移动并删原文件（校验失败绝不删）
+- **管**：格子名建课时自定义，课程页长按格子改名/删除；文件点按预览、长按圈选，可移动/导出/删除
+- **手机文件**：浏览 SAF 授权文件夹，点按预览、长按圈选，「收进匣子」或「直接删除」（真删有确认）
+- **找**：首页全局搜、格子内搜，点结果直达预览
+- **个性**：标题旁 ⚙ 换背景图，课程卡换色，⚙ 里还有「使用指南」
+- **去重**：按 SHA-256 内容哈希，同一份文件不会收两次
 
 ## 自己编译
 
 ```bat
 set JAVA_HOME=C:\Program Files\Java\jdk-17
-D:\qingting\tools\gradle-8.11.1\bin\gradle.bat assembleDebug
+D:\qingting\tools\gradle-8.11.1\bin\gradle.bat assembleDebug          :: PopMemo
+D:\qingting\tools\gradle-8.11.1\bin\gradle.bat :coursebox:assembleDebug :: 课匣
 ```
 
-产物：`build\outputs\apk\debug\popmemo-debug.apk`
+产物：`build\outputs\apk\debug\popmemo-debug.apk`、`coursebox\build\outputs\apk\debug\coursebox-debug.apk`
 
 `local.properties` 里的 `sdk.dir` 指向本机 SDK（`D:\qingting\tools`），该文件不入库。
 
