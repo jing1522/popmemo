@@ -280,16 +280,18 @@ public class MainActivity extends Activity {
 
     private void bgDialog() {
         new AlertDialog.Builder(this)
-            .setTitle("首页背景")
-            .setItems(new String[]{"换一张背景图", "恢复默认"}, (d, w) -> {
+            .setTitle("设置")
+            .setItems(new String[]{"换一张背景图", "恢复默认背景", "使用指南"}, (d, w) -> {
                 if (w == 0) {
                     Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                     i.addCategory(Intent.CATEGORY_OPENABLE);
                     i.setType("image/*");
                     startActivityForResult(i, REQ_BG);
-                } else {
+                } else if (w == 1) {
                     bgFile().delete();
                     build();
+                } else {
+                    startActivity(new Intent(this, HelpActivity.class));
                 }
             })
             .show();

@@ -28,6 +28,7 @@
             android:grantUriPermissions="true" />
         <activity android:name=".ImportActivity" android:exported="false" />
         <activity android:name=".BrowseActivity" android:exported="false" />
+        <activity android:name=".HelpActivity" android:exported="false" />
 
         <!-- 系统分享菜单入口：任意文件/图片都能分享进来 -->
         <activity
