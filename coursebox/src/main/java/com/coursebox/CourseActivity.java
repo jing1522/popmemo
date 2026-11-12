@@ -420,11 +420,30 @@ public class CourseActivity extends Activity {
     private void catOptions(Models.Cat c) {
         new AlertDialog.Builder(this)
             .setTitle(c.icon + " " + c.name)
-            .setItems(new String[]{"重命名", "删除格子"}, (d, w) -> {
-                if (w == 0) renameCatDialog(c);
+            .setItems(new String[]{"往前挪", "往后挪", "重命名", "删除格子"}, (d, w) -> {
+                if (w == 0) moveCat(c, -1);
+                else if (w == 1) moveCat(c, 1);
+                else if (w == 2) renameCatDialog(c);
                 else confirmDeleteCat(c);
             })
             .show();
+    }
+
+    /** 格子的顺序就是 cats 列表的顺序，挪一下再保存就行。 */
+    private void moveCat(Models.Cat c, int dir) {
+        int i = course.cats.indexOf(c);
+        int j = i + dir;
+        if (i < 0 || j < 0 || j >= course.cats.size()) {
+            Toast.makeText(this, dir < 0 ? "已经在最前了" : "已经在最后了", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        // 选中态跟着格子走：先记下当前选中的，交换后再找它的新位置
+        Models.Cat selected = cat();
+        course.cats.set(i, course.cats.get(j));
+        course.cats.set(j, c);
+        store.save();
+        catIdx = Math.max(0, course.cats.indexOf(selected));
+        buildChips(); buildFiles();
     }
 
     private void renameCatDialog(Models.Cat c) {
