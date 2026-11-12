@@ -27,5 +27,23 @@ android {
     }
 }
 
+// 每次编译留一份带版本号+时间戳的 APK，新包装出问题能装回旧版
+def keepApk = tasks.register('keepApk') {
+    doLast {
+        def src = layout.buildDirectory.file("outputs/apk/debug/${project.name}-debug.apk").get().asFile
+        if (!src.exists()) return
+        def dir = new File('D:/popmemo-releases')
+        dir.mkdirs()
+        def base = "${project.name}-${android.defaultConfig.versionName}"
+        boolean dup = dir.listFiles()?.any { it.name.startsWith(base) && it.length() == src.length() }
+        if (dup) return
+        def stamp = new java.text.SimpleDateFormat('yyyyMMdd-HHmm').format(new Date())
+        def dst = new File(dir, "${base}-${stamp}.apk")
+        dst.bytes = src.bytes
+        println "留存 APK: ${dst}"
+    }
+}
+tasks.matching { it.name == 'assembleDebug' }.configureEach { finalizedBy(keepApk) }
+
 dependencies {
 }
