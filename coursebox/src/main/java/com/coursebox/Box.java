@@ -103,11 +103,90 @@ public class Box {
         return it;
     }
 
-    /** 删除材料：删实体 + 删索引 */
+    /** 删除材料：实体挪进回收站，7 天可还原；要真删用 destroy。 */
     public void delete(Models.Course c, Models.Cat cat, Models.Item it) {
-        new File(root(), it.rel).delete();
+        File src = new File(root(), it.rel);
+        File trashDir = new File(root(), ".trash");
+        if (!trashDir.exists()) trashDir.mkdirs();
+        String id = java.util.UUID.randomUUID().toString().substring(0, 8);
+        File dst = new File(trashDir, id);
+        if (src.exists() && !src.renameTo(dst)) {
+            try { copy(src, dst); src.delete(); } catch (Exception ignored) {}
+        }
+        Models.TrashItem t = new Models.TrashItem();
+        t.name = it.name;
+        t.rel = ".trash/" + id;
+        t.size = it.size;
+        t.at = it.at;
+        t.sha = it.sha;
+        t.deletedAt = System.currentTimeMillis();
+        t.courseId = c.id;
+        t.courseName = c.name;
+        t.catId = cat.id;
+        t.catName = cat.name;
         cat.items.remove(it);
+        store.trash.add(0, t);
         store.save();
+    }
+
+    /** 从回收站放回原处：原课程没了就进待整理，原格子没了就重建一个同名格子。 */
+    public boolean restore(Models.TrashItem t) {
+        File src = new File(root(), t.rel);
+        if (!src.exists()) {
+            store.trash.remove(t);
+            store.save();
+            return false;
+        }
+        Models.Course c = store.course(t.courseId);
+        if (c == null) c = store.inboxCourse();
+        Models.Cat cat = c.cat(t.catId);
+        if (cat == null) {
+            String name = t.catName.isEmpty() ? "找回的" : t.catName;
+            cat = store.addCat(c, name, name.substring(0, 1));
+        }
+        File dir = new File(root(), c.id + "/" + cat.id);
+        if (!dir.exists()) dir.mkdirs();
+        // 重名加序号，跟收进来时一个规矩
+        File dst = new File(dir, t.name);
+        int n = 1;
+        String base = t.name, ext = "";
+        int dot = t.name.lastIndexOf('.');
+        if (dot > 0) { base = t.name.substring(0, dot); ext = t.name.substring(dot); }
+        while (dst.exists()) dst = new File(dir, base + "(" + (n++) + ")" + ext);
+        if (!src.renameTo(dst)) {
+            try { copy(src, dst); src.delete(); } catch (Exception e) { return false; }
+        }
+        Models.Item it = new Models.Item();
+        it.name = dst.getName();
+        it.rel = c.id + "/" + cat.id + "/" + dst.getName();
+        it.size = t.size;
+        it.at = t.at;
+        it.sha = t.sha;
+        cat.items.add(0, it);
+        store.trash.remove(t);
+        store.save();
+        return true;
+    }
+
+    /** 彻底删除回收站里的一份。 */
+    public void destroy(Models.TrashItem t) {
+        new File(root(), t.rel).delete();
+        store.trash.remove(t);
+        store.save();
+    }
+
+    /** 回收站只留 7 天，每次开 App 顺手清一次。 */
+    public void purgeTrash() {
+        long cutoff = System.currentTimeMillis() - 7L * 24 * 3600 * 1000;
+        boolean changed = false;
+        for (int i = store.trash.size() - 1; i >= 0; i--) {
+            if (store.trash.get(i).deletedAt < cutoff) {
+                new File(root(), store.trash.get(i).rel).delete();
+                store.trash.remove(i);
+                changed = true;
+            }
+        }
+        if (changed) store.save();
     }
 
     /** 跨格子移动 */

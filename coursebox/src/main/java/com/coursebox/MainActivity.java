@@ -29,6 +29,7 @@ public class MainActivity extends Activity {
     private static final int REQ_BG = 7;
 
     private Store store;
+    private Box box;
     private LinearLayout root;
     private String query = "";
 
@@ -36,6 +37,8 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         store = Store.get(this);
+        box = new Box(this);
+        box.purgeTrash(); // 回收站只留 7 天，开 App 顺手清
         build();
     }
 
@@ -281,7 +284,7 @@ public class MainActivity extends Activity {
     private void bgDialog() {
         new AlertDialog.Builder(this)
             .setTitle("设置")
-            .setItems(new String[]{"换一张背景图", "恢复默认背景", "使用指南"}, (d, w) -> {
+            .setItems(new String[]{"换一张背景图", "恢复默认背景", "回收站", "使用指南"}, (d, w) -> {
                 if (w == 0) {
                     Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                     i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -290,10 +293,68 @@ public class MainActivity extends Activity {
                 } else if (w == 1) {
                     bgFile().delete();
                     build();
+                } else if (w == 2) {
+                    trashDialog();
                 } else {
                     startActivity(new Intent(this, HelpActivity.class));
                 }
             })
+            .show();
+    }
+
+    /* ---------- 回收站 ---------- */
+
+    private void trashDialog() {
+        if (store.trash.isEmpty()) {
+            new AlertDialog.Builder(this)
+                .setTitle("回收站")
+                .setMessage("回收站是空的。\n\n删掉的文件会在这里躺 7 天，超时自动清掉。")
+                .setPositiveButton("知道了", null)
+                .show();
+            return;
+        }
+        String[] labels = new String[store.trash.size()];
+        for (int i = 0; i < labels.length; i++) {
+            Models.TrashItem t = store.trash.get(i);
+            long days = (System.currentTimeMillis() - t.deletedAt) / 86400000L;
+            labels[i] = t.name + "\n来自 " + t.courseName + " / " + t.catName
+                    + (days <= 0 ? " · 今天删的" : " · " + days + " 天前删的");
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("回收站（留 7 天）")
+            .setItems(labels, (d, which) -> trashItemDialog(store.trash.get(which)))
+            .setNeutralButton("清空回收站", (d, w) -> confirmEmptyTrash())
+            .setNegativeButton("关闭", null)
+            .show();
+    }
+
+    private void trashItemDialog(Models.TrashItem t) {
+        new AlertDialog.Builder(this)
+            .setTitle(t.name)
+            .setItems(new String[]{"放回原处", "彻底删除"}, (d, w) -> {
+                if (w == 0) {
+                    boolean ok = box.restore(t);
+                    Toast.makeText(this, ok ? "已放回原处" : "文件已经不在了", Toast.LENGTH_SHORT).show();
+                    build();
+                } else {
+                    box.destroy(t);
+                    Toast.makeText(this, "已彻底删除", Toast.LENGTH_SHORT).show();
+                }
+                trashDialog();
+            })
+            .setNegativeButton("返回", (d, w) -> trashDialog())
+            .show();
+    }
+
+    private void confirmEmptyTrash() {
+        new AlertDialog.Builder(this)
+            .setTitle("清空回收站？")
+            .setMessage(store.trash.size() + " 份文件会彻底删掉，这一步没有后悔药。")
+            .setPositiveButton("清空", (d, w) -> {
+                for (int i = store.trash.size() - 1; i >= 0; i--) box.destroy(store.trash.get(i));
+                Toast.makeText(this, "回收站已清空", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("算了", (d, w) -> trashDialog())
             .show();
     }
 

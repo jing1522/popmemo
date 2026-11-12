@@ -34,6 +34,7 @@ public class Store {
 
     private final Context ctx;
     public final List<Models.Course> courses = new ArrayList<>();
+    public final List<Models.TrashItem> trash = new ArrayList<>();
 
     private Store(Context ctx) {
         this.ctx = ctx;
@@ -132,6 +133,16 @@ public class Store {
                 cs.put(co);
             }
             root.put("courses", cs);
+            JSONArray ta = new JSONArray();
+            for (Models.TrashItem t : trash) {
+                JSONObject to = new JSONObject();
+                to.put("name", t.name).put("rel", t.rel).put("size", t.size)
+                  .put("at", t.at).put("sha", t.sha).put("deletedAt", t.deletedAt)
+                  .put("courseId", t.courseId).put("catId", t.catId)
+                  .put("courseName", t.courseName).put("catName", t.catName);
+                ta.put(to);
+            }
+            root.put("trash", ta);
             FileOutputStream fos = new FileOutputStream(file());
             fos.write(root.toString().getBytes("UTF-8"));
             fos.close();
@@ -176,6 +187,22 @@ public class Store {
                     c.cats.add(cat);
                 }
                 courses.add(c);
+            }
+            JSONArray ta = root.optJSONArray("trash");
+            if (ta != null) for (int i = 0; i < ta.length(); i++) {
+                JSONObject to = ta.getJSONObject(i);
+                Models.TrashItem t = new Models.TrashItem();
+                t.name = to.getString("name");
+                t.rel = to.getString("rel");
+                t.size = to.optLong("size");
+                t.at = to.optLong("at");
+                t.sha = to.optString("sha", "");
+                t.deletedAt = to.optLong("deletedAt");
+                t.courseId = to.optString("courseId", "");
+                t.catId = to.optString("catId", "");
+                t.courseName = to.optString("courseName", "");
+                t.catName = to.optString("catName", "");
+                trash.add(t);
             }
         } catch (Exception ignored) {}
     }

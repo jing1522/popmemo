@@ -21,6 +21,20 @@ public class Models {
         public List<Item> items = new ArrayList<>();
     }
 
+    /** 回收站里的一份文件：实体躺在 box/.trash/ 下，7 天没人管就真删。 */
+    public static class TrashItem {
+        public String name;      // 原文件名
+        public String rel;       // .trash/ 下的相对路径
+        public long size;
+        public long at;          // 原来收进的时间
+        public String sha;
+        public long deletedAt;   // 进回收站的时间
+        public String courseId;  // 原来的课程/格子，还原时用
+        public String catId;
+        public String courseName;
+        public String catName;
+    }
+
     public static class Course {
         public String id;
         public String name;

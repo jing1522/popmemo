@@ -344,7 +344,7 @@ public class CourseActivity extends Activity {
             int n = idx.length;
             sel.clear();
             buildChips(); buildFiles(); buildBand(); updateSelbar();
-            Toast.makeText(this, "已删除 " + n + " 份", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, n + " 份已放进回收站", Toast.LENGTH_SHORT).show();
         });
 
         FrameLayout overlay = new FrameLayout(this);
@@ -471,7 +471,7 @@ public class CourseActivity extends Activity {
         int n = c.items.size();
         new AlertDialog.Builder(this)
             .setTitle("删掉格子「" + c.name + "」？")
-            .setMessage(n == 0 ? "格子是空的，直接删。" : "格子里的 " + n + " 份文件会一起从匣子里删掉，找不回来。")
+            .setMessage(n == 0 ? "格子是空的，直接删。" : "格子里的 " + n + " 份文件会一起进回收站，7 天内能从首页 ⚙ 里找回来。")
             .setPositiveButton("删除", (d, w) -> {
                 for (Models.Item it : new java.util.ArrayList<>(c.items)) box.delete(course, c, it);
                 course.cats.remove(c);
