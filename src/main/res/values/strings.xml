@@ -13,6 +13,7 @@
     <string name="swipe_done">办完了</string>
     <string name="swipe_later">还没办</string>
     <string name="add">＋</string>
+    <string name="accessibility_desc">解锁手机时，把没办完的事摆到屏幕上</string>
 
     <!-- 课程表（并行窗口加的，保留不动） -->
     <string name="switch_label">解锁时弹出重要事项</string>

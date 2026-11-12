@@ -11,24 +11,21 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.IBinder;
-import android.provider.Settings;
 
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * 常驻前台服务：监听「解锁完成」，每次解锁都把最该看见的 3 条摆出来。
- * 不节流、不开关——没办完就一直出现。
- * 截止日越近，越优先占卡位；没设日期的按「最久没露面」轮转。
+ * 常驻前台服务：监听「解锁完成」，解锁后把最该看见的几条摆出来。
+ * 弹窗频率在设置里可调（默认每 5 次解锁弹一次），红卡不受限。
+ * 这是兜底方案：用户开了无障碍服务之后，改由 UnlockAccessibilityService 监听，
+ * 这个服务就会被停掉（常驻通知一起收走），省电。
  */
 public class UnlockService extends Service {
 
     private static final String CHANNEL_ID = "unlock";
-    private static final int MAX_ITEMS = 5;
 
     /** 通知上的两个动作。 */
     public static final String ACTION_SNOOZE = "com.popmemo.SNOOZE";
@@ -40,22 +37,21 @@ public class UnlockService extends Service {
     /** 「看网课」跳这里。换平台只改这一行。 */
     private static final String COURSE_URL = "https://www.bilibili.com/watchlater/";
 
-    private UnlockOverlay overlay;
     private BroadcastReceiver unlockReceiver;
 
     @Override
     public void onCreate() {
         super.onCreate();
-        overlay = new UnlockOverlay(this);
         unlockReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if (Intent.ACTION_USER_PRESENT.equals(intent.getAction())) {
-                    showDue();
+                    DueShower.show(context, pending -> updateNotification(pending));
                 }
             }
         };
         registerReceiver(unlockReceiver, new IntentFilter(Intent.ACTION_USER_PRESENT));
+        FloatingBall.sync(this);
     }
 
     @Override
@@ -66,7 +62,7 @@ public class UnlockService extends Service {
         } else if (ACTION_UNSNOOZE.equals(action)) {
             prefs().edit().remove(PREF_SNOOZE_UNTIL).apply();
         }
-        startForeground(1, buildNotification(pendingOf(new MemoStore(this).load())));
+        startForeground(1, buildNotification(DueShower.pendingOf(new MemoStore(this).load())));
         return START_STICKY;
     }
 
@@ -76,108 +72,6 @@ public class UnlockService extends Service {
 
     private long snoozeUntil() {
         return prefs().getLong(PREF_SNOOZE_UNTIL, 0L);
-    }
-
-    private List<Memo> pendingOf(List<Memo> memos) {
-        List<Memo> out = new ArrayList<>();
-        for (Memo memo : memos) {
-            if (!memo.muted && !memo.isDone()) {
-                out.add(memo);
-            }
-        }
-        return out;
-    }
-
-    /** 0 = 已过期/今天，1 = 三天内，2 = 一周内，3 = 更远或没设。 */
-    private static int tier(Memo memo, long now) {
-        if (memo.dueAt <= 0) {
-            return 3;
-        }
-        int days = memo.daysLeft(now);
-        if (days <= 0) {
-            return 0;
-        }
-        if (days <= 3) {
-            return 1;
-        }
-        if (days <= 7) {
-            return 2;
-        }
-        return 3;
-    }
-
-    private void showDue() {
-        if (System.currentTimeMillis() < snoozeUntil()) {
-            return;
-        }
-        if (!Settings.canDrawOverlays(this) || overlay.isShowing()) {
-            return;
-        }
-
-        MemoStore store = new MemoStore(this);
-        List<Memo> all = store.load();
-        List<Memo> active = pendingOf(all);
-        if (active.isEmpty()) {
-            updateNotification(active);
-            return;
-        }
-
-        long now = System.currentTimeMillis();
-        Collections.sort(active, (a, b) -> {
-            int ta = tier(a, now);
-            int tb = tier(b, now);
-            if (ta != tb) {
-                return Integer.compare(ta, tb);
-            }
-            // 同一档里，有截止日的先于没截止日的。
-            boolean aDue = a.dueAt > 0;
-            boolean bDue = b.dueAt > 0;
-            if (aDue != bDue) {
-                return aDue ? -1 : 1;
-            }
-            if (aDue) {
-                int byDue = Long.compare(a.dueAt, b.dueAt);
-                if (byDue != 0) {
-                    return byDue;
-                }
-            }
-            return Long.compare(a.lastSeenAt, b.lastSeenAt);
-        });
-
-        if (!overlay.show(active, new UnlockOverlay.Listener() {
-            @Override
-            public void onShown(Memo memo) {
-                memo.lastSeenAt = System.currentTimeMillis();
-                store.save(all);
-            }
-
-            @Override
-            public void onDone(Memo memo) {
-                memo.doneAt = System.currentTimeMillis();
-                store.save(all);
-                MemoStore.notifyChanged();
-                updateNotification(pendingOf(all));
-            }
-
-            @Override
-            public void onLater(Memo memo) {
-                memo.lastSeenAt = System.currentTimeMillis();
-                store.save(all);
-                MemoStore.notifyChanged();
-            }
-
-            @Override
-            public void onAdd() {
-                Intent intent = new Intent(UnlockService.this, MainActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                intent.putExtra(MainActivity.EXTRA_FOCUS_INPUT, true);
-                startActivity(intent);
-            }
-        })) {
-            return;
-        }
-
-        updateNotification(active);
     }
 
     private Notification buildNotification(List<Memo> pending) {
@@ -259,9 +153,7 @@ public class UnlockService extends Service {
             unregisterReceiver(unlockReceiver);
             unlockReceiver = null;
         }
-        if (overlay != null) {
-            overlay.close();
-        }
+        // 浮层是共享的：这里不关，可能正由无障碍服务摆着。
         super.onDestroy();
     }
 

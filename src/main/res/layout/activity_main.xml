@@ -86,6 +86,16 @@
         android:visibility="gone" />
 
     <TextView
+        android:id="@+id/later_footer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="10dp"
+        android:gravity="center"
+        android:textColor="#888888"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
         android:id="@+id/done_footer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
