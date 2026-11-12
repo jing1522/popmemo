@@ -15,6 +15,10 @@
 - 提交信息：`feat: / fix: / docs: / style: / chore: <中文一句话>`，一行。
 - 提交后跑 `git status`，工作区必须干净。
 
+## 发版
+- 两个 App 各自版本：功能批次涨第二位，修 bug 涨第三位。
+- 发版动作：改对应 build.gradle 的 versionCode/versionName → 编译 → 在 CHANGELOG.md 记一笔 → 打 tag（`popmemo-vX.Y` / `coursebox-vX.Y`）。
+
 ## 边界
 - 不提交：`build/`、`.gradle/`、`local.properties`、`*.apk`、`.idea/`、`*.iml`、`.probe.txt`。
 - 禁止 `--force`，禁止改写已有历史，禁止动别人的提交。
