@@ -73,9 +73,16 @@ public class MainActivity extends Activity {
         head.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout tt = new LinearLayout(this);
         tt.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = Ui.tv(this, "课匣", 30, Ui.INK, android.graphics.Typeface.BOLD);
-        title.setOnLongClickListener(v -> { bgDialog(); return true; });
-        tt.addView(title);
+        titleRow.addView(title);
+        TextView gear = Ui.tv(this, "⚙", 18, Ui.MUTED, 0);
+        gear.setGravity(Gravity.CENTER);
+        gear.setPadding(Ui.dp(this, 8), 0, 0, 0);
+        gear.setOnClickListener(v -> bgDialog());
+        titleRow.addView(gear, new LinearLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40)));
+        tt.addView(titleRow);
         tt.addView(Ui.tv(this, store.courses.size() + " 门课 · 材料各有其格", 13, Ui.MUTED, 0));
         head.addView(tt, new LinearLayout.LayoutParams(0, -2, 1));
 
@@ -102,7 +109,7 @@ public class MainActivity extends Activity {
             files += c.count();
             cats += c.cats.size();
         }
-        TextView stat = Ui.tv(this, files + " 份材料 · " + cats + " 个格子 · 长按标题可换背景图", 13, Ui.INK, 0);
+        TextView stat = Ui.tv(this, files + " 份材料 · " + cats + " 个格子 · 点标题旁的 ⚙ 换背景", 13, Ui.INK, 0);
         stat.setBackground(Ui.roundStroke(0x147C8DA0, 14, 0x2E7C8DA0, this));
         stat.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
         LinearLayout.LayoutParams statLp = new LinearLayout.LayoutParams(-1, -2);
