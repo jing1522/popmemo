@@ -282,8 +282,14 @@ public class MainActivity extends Activity {
     }
 
     private void bgDialog() {
+        String version;
+        try {
+            version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            version = "?";
+        }
         new AlertDialog.Builder(this)
-            .setTitle("设置")
+            .setTitle("设置 · v" + version)
             .setItems(new String[]{"换一张背景图", "恢复默认背景", "回收站", "使用指南"}, (d, w) -> {
                 if (w == 0) {
                     Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
