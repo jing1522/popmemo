@@ -86,12 +86,21 @@ public class MainActivity extends Activity {
         tt.addView(Ui.tv(this, store.courses.size() + " 门课 · 材料各有其格", 13, Ui.MUTED, 0));
         head.addView(tt, new LinearLayout.LayoutParams(0, -2, 1));
 
+        TextView btnBrowse = Ui.tv(this, "手机文件", 13, Ui.INK, android.graphics.Typeface.BOLD);
+        btnBrowse.setGravity(Gravity.CENTER);
+        btnBrowse.setBackground(Ui.roundStroke(Color.WHITE, 99, Ui.RULE, this));
+        btnBrowse.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
+        btnBrowse.setOnClickListener(v -> startActivity(new Intent(this, BrowseActivity.class)));
+        head.addView(btnBrowse);
+
         TextView btnImport = Ui.tv(this, "批量整理", 13, Color.WHITE, android.graphics.Typeface.BOLD);
         btnImport.setGravity(Gravity.CENTER);
         btnImport.setBackground(Ui.grad(Ui.ACCENT, Ui.ACCENT2, 99, this));
         btnImport.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 10));
+        LinearLayout.LayoutParams impLp = new LinearLayout.LayoutParams(-2, -2);
+        impLp.leftMargin = Ui.dp(this, 10);
         btnImport.setOnClickListener(v -> startActivity(new Intent(this, ImportActivity.class)));
-        head.addView(btnImport);
+        head.addView(btnImport, impLp);
 
         TextView btnAdd = Ui.tv(this, "＋", 20, Ui.INK, android.graphics.Typeface.BOLD);
         btnAdd.setGravity(Gravity.CENTER);
