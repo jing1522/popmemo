@@ -144,6 +144,7 @@ public class CourseActivity extends Activity {
 
     private void buildChips() {
         if (chips != null) root.removeView(chips.getParent() instanceof View ? (View) chips.getParent() : chips);
+        if (catIdx >= course.cats.size()) catIdx = Math.max(0, course.cats.size() - 1);
         HorizontalScrollView hsv = new HorizontalScrollView(this);
         hsv.setHorizontalScrollBarEnabled(false);
         chips = new LinearLayout(this);
@@ -169,6 +170,7 @@ public class CourseActivity extends Activity {
                 buildFiles();
                 updateSelbar();
             });
+            t.setOnLongClickListener(v -> { catOptions(c); return true; });
             chips.addView(t, lp);
         }
 
@@ -190,8 +192,9 @@ public class CourseActivity extends Activity {
         sv.addView(grid, new ScrollView.LayoutParams(-1, -2));
         root.addView(sv, 3, new LinearLayout.LayoutParams(-1, 0, 1)); // 固定在第 4 位
 
-        Models.Cat c = cat();
+        Models.Cat c = course.cats.isEmpty() ? null : cat();
         int shown = 0;
+        if (c != null)
         for (int i = 0; i < c.items.size(); i++) {
             if (!query.isEmpty() && !c.items.get(i).name.toLowerCase().contains(query)) continue;
             grid.addView(fileCard(c.items.get(i), i), cellLp());
@@ -199,7 +202,8 @@ public class CourseActivity extends Activity {
         }
         if (shown == 0) {
             TextView empty = Ui.tv(this,
-                query.isEmpty() ? "这个格子还是空的\n\n系统里分享文件到「课匣」就能收进来"
+                c == null ? "还没有格子\n\n点上面的「＋ 格子」建一个"
+                : query.isEmpty() ? "这个格子还是空的\n\n系统里分享文件到「课匣」就能收进来"
                                 : "这格里没有名字带「" + query + "」的材料", 14, Ui.MUTED, 0);
             empty.setGravity(Gravity.CENTER);
             empty.setLineSpacing(Ui.dp(this, 6), 1);
@@ -409,6 +413,55 @@ public class CourseActivity extends Activity {
             e.setOnClickListener(v -> { emojiIdx = idx; paintEmojis(row); });
             row.addView(e, lp);
         }
+    }
+
+    /* ---------- 格子改名/删除 ---------- */
+
+    private void catOptions(Models.Cat c) {
+        new AlertDialog.Builder(this)
+            .setTitle(c.icon + " " + c.name)
+            .setItems(new String[]{"重命名", "删除格子"}, (d, w) -> {
+                if (w == 0) renameCatDialog(c);
+                else confirmDeleteCat(c);
+            })
+            .show();
+    }
+
+    private void renameCatDialog(Models.Cat c) {
+        final EditText et = new EditText(this);
+        et.setText(c.name);
+        et.setSingleLine();
+        int p = Ui.dp(this, 20);
+        et.setPadding(p, p, p, 0);
+        new AlertDialog.Builder(this)
+            .setTitle("格子改名")
+            .setView(et)
+            .setPositiveButton("保存", (d, w) -> {
+                String name = et.getText().toString().trim();
+                if (name.isEmpty()) { Toast.makeText(this, "名字不能为空", Toast.LENGTH_SHORT).show(); return; }
+                c.name = name;
+                c.icon = name.substring(0, 1);
+                store.save();
+                buildChips(); buildFiles();
+            })
+            .setNegativeButton("取消", null)
+            .show();
+    }
+
+    private void confirmDeleteCat(Models.Cat c) {
+        int n = c.items.size();
+        new AlertDialog.Builder(this)
+            .setTitle("删掉格子「" + c.name + "」？")
+            .setMessage(n == 0 ? "格子是空的，直接删。" : "格子里的 " + n + " 份文件会一起从匣子里删掉，找不回来。")
+            .setPositiveButton("删除", (d, w) -> {
+                for (Models.Item it : new java.util.ArrayList<>(c.items)) box.delete(course, c, it);
+                course.cats.remove(c);
+                store.save();
+                sel.clear();
+                buildBand(); buildChips(); buildFiles(); updateSelbar();
+            })
+            .setNegativeButton("取消", null)
+            .show();
     }
 
     private void newCatDialog() {

@@ -45,19 +45,17 @@ public class Store {
         return null;
     }
 
-    public Models.Course addCourse(String name, int color, boolean withDefCats) {
+    public Models.Course addCourse(String name, int color, List<String> catNames) {
         Models.Course c = new Models.Course();
         c.id = UUID.randomUUID().toString().substring(0, 8);
         c.name = name;
         c.color = color;
-        if (withDefCats) {
-            for (String[] d : DEF_CATS) {
-                Models.Cat cat = new Models.Cat();
-                cat.id = UUID.randomUUID().toString().substring(0, 8);
-                cat.name = d[0];
-                cat.icon = d[1];
-                c.cats.add(cat);
-            }
+        for (String cn : catNames) {
+            Models.Cat cat = new Models.Cat();
+            cat.id = UUID.randomUUID().toString().substring(0, 8);
+            cat.name = cn;
+            cat.icon = cn.substring(0, 1);
+            c.cats.add(cat);
         }
         courses.add(c);
         save();

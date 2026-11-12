@@ -353,13 +353,33 @@ public class MainActivity extends Activity {
         paintDots(dots);
         box.setTag(dots);
 
+        EditText cats = new EditText(this);
+        cats.setHint("格子名，一行一个，可删改");
+        cats.setMinLines(3);
+        cats.setGravity(Gravity.TOP);
+        cats.setTextSize(14);
+        StringBuilder def = new StringBuilder();
+        for (String[] d : Store.DEF_CATS) {
+            if (def.length() > 0) def.append('\n');
+            def.append(d[0]);
+        }
+        cats.setText(def.toString());
+        LinearLayout.LayoutParams catsLp = new LinearLayout.LayoutParams(-1, -2);
+        catsLp.topMargin = Ui.dp(this, 14);
+        box.addView(cats, catsLp);
+
         new AlertDialog.Builder(this)
             .setTitle("新建课程")
             .setView(box)
             .setPositiveButton("创建", (d, w) -> {
                 String name = et.getText().toString().trim();
                 if (name.isEmpty()) { Toast.makeText(this, "先起个名", Toast.LENGTH_SHORT).show(); return; }
-                store.addCourse(name, pickedColor, true);
+                java.util.List<String> names = new java.util.ArrayList<>();
+                for (String line : cats.getText().toString().split("\n")) {
+                    String s = line.trim();
+                    if (!s.isEmpty() && !names.contains(s)) names.add(s);
+                }
+                store.addCourse(name, pickedColor, names);
                 build();
             })
             .setNegativeButton("取消", null)
