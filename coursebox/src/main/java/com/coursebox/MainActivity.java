@@ -30,6 +30,7 @@ public class MainActivity extends Activity {
 
     private Store store;
     private LinearLayout root;
+    private String query = "";
 
     @Override
     protected void onCreate(Bundle b) {
@@ -108,23 +109,83 @@ public class MainActivity extends Activity {
         statLp.topMargin = Ui.dp(this, 14);
         root.addView(stat, statLp);
 
-        // 课程墙
-        ScrollView sv = new ScrollView(this);
-        GridLayout grid = new GridLayout(this);
-        grid.setColumnCount(2);
-        sv.addView(grid, new ScrollView.LayoutParams(-1, -2));
+        // 搜索条：跨全部课程格子搜材料名
+        EditText search = new EditText(this);
+        search.setHint("搜索材料名");
+        search.setSingleLine();
+        search.setTextSize(14);
+        search.setTextColor(Ui.INK);
+        search.setHintTextColor(Ui.MUTED);
+        search.setBackground(Ui.roundStroke(Color.WHITE, 14, Ui.RULE, this));
+        search.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 10));
+        LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(-1, -2);
+        sLp.topMargin = Ui.dp(this, 12);
+        root.addView(search, sLp);
+
+        // 课程墙（输入搜索词时切换为结果列表）
+        final ScrollView sv = new ScrollView(this);
+        sv.addView(wallView(), new ScrollView.LayoutParams(-1, -2));
         LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(-1, 0, 1);
         svLp.topMargin = Ui.dp(this, 14);
         root.addView(sv, svLp);
 
+        search.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            public void afterTextChanged(android.text.Editable e) {}
+            public void onTextChanged(CharSequence s, int a, int b, int c) {
+                query = s.toString().trim().toLowerCase();
+                sv.removeAllViews();
+                sv.addView(query.isEmpty() ? wallView() : resultsView(),
+                    new ScrollView.LayoutParams(-1, -2));
+            }
+        });
+    }
+
+    private View wallView() {
+        GridLayout grid = new GridLayout(this);
+        grid.setColumnCount(2);
         if (store.courses.isEmpty()) {
             TextView empty = Ui.tv(this, "还没有课程\n\n点右上角 ＋ 新建一门课\n或点「批量整理」直接导入旧文件", 15, Ui.MUTED, 0);
             empty.setGravity(Gravity.CENTER);
             empty.setLineSpacing(Ui.dp(this, 6), 1);
             grid.addView(empty, cellLp(-1));
         }
-
         for (Models.Course c : store.courses) grid.addView(courseCard(c), cellLp(0));
+        return grid;
+    }
+
+    /** 全局搜索结果：跨课程跨格子按文件名匹配，点击直接预览 */
+    private View resultsView() {
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        int hit = 0;
+        for (Models.Course c : store.courses)
+            for (Models.Cat cat : c.cats)
+                for (Models.Item it : cat.items) {
+                    if (!it.name.toLowerCase().contains(query)) continue;
+                    hit++;
+                    LinearLayout row = new LinearLayout(this);
+                    row.setOrientation(LinearLayout.VERTICAL);
+                    row.setBackground(Ui.round(Color.WHITE, 14, this));
+                    row.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
+                    TextView n = Ui.tv(this, it.name, 14, Ui.INK, android.graphics.Typeface.BOLD);
+                    n.setMaxLines(1);
+                    n.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    row.addView(n);
+                    row.addView(Ui.tv(this, c.name + " · " + cat.name + " · " + Ui.sizeText(it.size), 11, Ui.MUTED, 0));
+                    row.setOnClickListener(v -> FileServer.view(this, it));
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                    lp.bottomMargin = Ui.dp(this, 8);
+                    list.addView(row, lp);
+                }
+        if (hit == 0) {
+            TextView empty = Ui.tv(this, "没有找到名字里带「" + query + "」的材料", 14, Ui.MUTED, 0);
+            empty.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.topMargin = Ui.dp(this, 60);
+            list.addView(empty, lp);
+        }
+        return list;
     }
 
     private GridLayout.LayoutParams cellLp(int w) {

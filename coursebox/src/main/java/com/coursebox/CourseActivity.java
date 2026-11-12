@@ -28,6 +28,7 @@ public class CourseActivity extends Activity {
     private Box box;
     private Models.Course course;
     private int catIdx = 0;
+    private String query = "";
     private final Set<Integer> sel = new HashSet<>();
 
     private LinearLayout root;
@@ -56,8 +57,35 @@ public class CourseActivity extends Activity {
         setContentView(root);
         buildBand();
         buildChips();
+        buildSearch();
         buildFiles();
         buildSelbar();
+    }
+
+    /* ---------- 格子内搜索 ---------- */
+
+    private void buildSearch() {
+        EditText search = new EditText(this);
+        search.setHint("搜这个格子");
+        search.setSingleLine();
+        search.setTextSize(13);
+        search.setTextColor(Ui.INK);
+        search.setHintTextColor(Ui.MUTED);
+        search.setBackground(Ui.roundStroke(Color.WHITE, 99, Ui.RULE, this));
+        search.setPadding(Ui.dp(this, 16), Ui.dp(this, 7), Ui.dp(this, 16), Ui.dp(this, 7));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.leftMargin = Ui.dp(this, 22);
+        lp.rightMargin = Ui.dp(this, 22);
+        lp.topMargin = Ui.dp(this, 6);
+        root.addView(search, lp); // 固定在第 3 位（band、chips 之后）
+        search.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            public void afterTextChanged(android.text.Editable e) {}
+            public void onTextChanged(CharSequence s, int a, int b, int c) {
+                query = s.toString().trim().toLowerCase();
+                buildFiles();
+            }
+        });
     }
 
     /* ---------- 顶部色带 ---------- */
@@ -121,7 +149,7 @@ public class CourseActivity extends Activity {
         chips = new LinearLayout(this);
         chips.setPadding(Ui.dp(this, 22), Ui.dp(this, 14), Ui.dp(this, 22), Ui.dp(this, 4));
         hsv.addView(chips);
-        root.addView(hsv);
+        root.addView(hsv, 1); // 固定在色带之下，避免重建时被排到页面底部
 
         for (int i = 0; i < course.cats.size(); i++) {
             Models.Cat c = course.cats.get(i);
@@ -160,20 +188,26 @@ public class CourseActivity extends Activity {
         grid.setColumnCount(2);
         grid.setPadding(Ui.dp(this, 15), Ui.dp(this, 8), Ui.dp(this, 15), Ui.dp(this, 120));
         sv.addView(grid, new ScrollView.LayoutParams(-1, -2));
-        root.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
+        root.addView(sv, 3, new LinearLayout.LayoutParams(-1, 0, 1)); // 固定在第 4 位
 
         Models.Cat c = cat();
-        if (c.items.isEmpty()) {
-            TextView empty = Ui.tv(this, "这个格子还是空的\n\n系统里分享文件到「课匣」就能收进来", 14, Ui.MUTED, 0);
+        int shown = 0;
+        for (int i = 0; i < c.items.size(); i++) {
+            if (!query.isEmpty() && !c.items.get(i).name.toLowerCase().contains(query)) continue;
+            grid.addView(fileCard(c.items.get(i), i), cellLp());
+            shown++;
+        }
+        if (shown == 0) {
+            TextView empty = Ui.tv(this,
+                query.isEmpty() ? "这个格子还是空的\n\n系统里分享文件到「课匣」就能收进来"
+                                : "这格里没有名字带「" + query + "」的材料", 14, Ui.MUTED, 0);
             empty.setGravity(Gravity.CENTER);
             empty.setLineSpacing(Ui.dp(this, 6), 1);
             GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
             lp.columnSpec = GridLayout.spec(0, 2, 1f);
             lp.topMargin = Ui.dp(this, 60);
             grid.addView(empty, lp);
-            return;
         }
-        for (int i = 0; i < c.items.size(); i++) grid.addView(fileCard(c.items.get(i), i), cellLp());
     }
 
     private GridLayout.LayoutParams cellLp() {
@@ -259,14 +293,7 @@ public class CourseActivity extends Activity {
     /* ---------- 预览 ---------- */
 
     private void openItem(Models.Item it) {
-        try {
-            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW);
-            i.setDataAndType(FileServer.uriOf(it.rel), FileServer.mimeOf(it.name));
-            i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(i);
-        } catch (android.content.ActivityNotFoundException e) {
-            Toast.makeText(this, "没有能打开这种文件的应用", Toast.LENGTH_SHORT).show();
-        }
+        FileServer.view(this, it);
     }
 
     @Override

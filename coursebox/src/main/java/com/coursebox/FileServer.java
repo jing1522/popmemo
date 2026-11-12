@@ -26,6 +26,18 @@ public class FileServer extends ContentProvider {
         return b.build();
     }
 
+    /** 调系统应用预览匣内文件（没装对应应用时提示，不崩） */
+    public static void view(android.app.Activity a, Models.Item it) {
+        try {
+            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+            i.setDataAndType(uriOf(it.rel), mimeOf(it.name));
+            i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            a.startActivity(i);
+        } catch (android.content.ActivityNotFoundException e) {
+            android.widget.Toast.makeText(a, "没有能打开这种文件的应用", android.widget.Toast.LENGTH_SHORT).show();
+        }
+    }
+
     public static String mimeOf(String name) {
         int dot = name.lastIndexOf('.');
         if (dot >= 0) {
