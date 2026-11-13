@@ -254,6 +254,17 @@ public class Box {
             int colon = name.lastIndexOf(':');
             if (colon >= 0) name = name.substring(colon + 1);
         }
+        // 分享来的名字常没扩展名（微信/相册），按 MIME 补上，不然图片认不出、预览拿不到类型
+        int dot = name.lastIndexOf('.');
+        if (dot < 0 || dot == name.length() - 1) {
+            try {
+                String mime = cr.getType(uri);
+                String ext = mime == null ? null
+                    : android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mime);
+                if (ext == null && mime != null && mime.startsWith("image/")) ext = "jpg";
+                if (ext != null) name = name + "." + ext;
+            } catch (Exception ignored) {}
+        }
         return name;
     }
 }
