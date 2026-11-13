@@ -6,6 +6,7 @@ import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -13,6 +14,7 @@ import android.os.Handler;
 import android.provider.DocumentsContract;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -276,6 +278,19 @@ public class ImportActivity extends Activity {
                 ftg.setTextColor(fr.include ? Ui.ACCENT : Ui.MUTED);
             });
             row.addView(tg, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 28)));
+
+            // 图片文件显示缩略图：图片一般没名字，没图根本没法判断归哪
+            if (Ui.isImg(r.name)) {
+                ImageView iv = new ImageView(this);
+                iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                iv.setClipToOutline(true);
+                iv.setBackground(Ui.round(0x14000000, 8, this));
+                Bitmap bm = Thumb.get(getContentResolver(), r.uri, Ui.dp(this, 120));
+                if (bm != null) iv.setImageBitmap(bm);
+                LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44));
+                ilp.leftMargin = Ui.dp(this, 10);
+                row.addView(iv, ilp);
+            }
 
             LinearLayout mid = new LinearLayout(this);
             mid.setOrientation(LinearLayout.VERTICAL);

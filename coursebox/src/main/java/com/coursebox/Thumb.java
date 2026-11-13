@@ -16,6 +16,29 @@ public class Thumb {
             }
         };
 
+    /** SAF  Uri 版：批量整理扫描出来的文件还不是 File，从 content:// 解码 */
+    public static Bitmap get(android.content.ContentResolver cr, android.net.Uri uri, int reqW) {
+        String key = uri.toString() + "@" + reqW;
+        Bitmap b = CACHE.get(key);
+        if (b != null) return b;
+        try {
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            java.io.InputStream in = cr.openInputStream(uri);
+            BitmapFactory.decodeStream(in, null, o);
+            if (in != null) in.close();
+            int sample = 1;
+            while (o.outWidth > 0 && o.outWidth / sample > reqW * 2) sample *= 2;
+            BitmapFactory.Options o2 = new BitmapFactory.Options();
+            o2.inSampleSize = sample;
+            in = cr.openInputStream(uri);
+            b = BitmapFactory.decodeStream(in, null, o2);
+            if (in != null) in.close();
+            if (b != null) CACHE.put(key, b);
+        } catch (Throwable ignored) {}
+        return b;
+    }
+
     public static Bitmap get(File f, int reqW) {
         String key = f.getAbsolutePath() + "@" + reqW;
         Bitmap b = CACHE.get(key);
