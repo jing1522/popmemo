@@ -189,15 +189,15 @@ public class Box {
         if (changed) store.save();
     }
 
-    /** 跨格子移动 */
-    public void move(Models.Course c, Models.Cat from, Models.Cat to, Models.Item it) {
+    /** 移动文件，可跨课程（待整理归档到具体课程也走这里） */
+    public void move(Models.Course fromC, Models.Cat from, Models.Course toC, Models.Cat to, Models.Item it) {
         File src = new File(root(), it.rel);
-        File dir = new File(root(), c.id + "/" + to.id);
+        File dir = new File(root(), toC.id + "/" + to.id);
         if (!dir.exists()) dir.mkdirs();
         File dst = new File(dir, src.getName());
         if (src.exists() && !dst.exists()) src.renameTo(dst);
         from.items.remove(it);
-        it.rel = c.id + "/" + to.id + "/" + dst.getName();
+        it.rel = toC.id + "/" + to.id + "/" + dst.getName();
         to.items.add(0, it);
         store.save();
     }

@@ -374,26 +374,49 @@ public class CourseActivity extends Activity {
 
     private void moveDialog() {
         Models.Cat from = cat();
-        String[] names = new String[course.cats.size() - 1];
-        final Models.Cat[] targets = new Models.Cat[course.cats.size() - 1];
-        int k = 0;
+        // 本课其他格子 + 其他课程（选了课程再选格子，待整理归档就靠这条路）
+        java.util.List<Object> targets = new java.util.ArrayList<>();
+        java.util.List<String> names = new java.util.ArrayList<>();
         for (Models.Cat c : course.cats) {
             if (c == from) continue;
-            names[k] = c.icon + " " + c.name;
-            targets[k++] = c;
+            targets.add(c);
+            names.add(c.icon + " " + c.name);
+        }
+        for (Models.Course oc : store.courses) {
+            if (oc == course) continue;
+            targets.add(oc);
+            names.add("→ " + oc.name);
         }
         new AlertDialog.Builder(this)
             .setTitle("移动 " + sel.size() + " 份到…")
-            .setItems(names, (d, w) -> {
-                Models.Cat to = targets[w];
-                Integer[] idx = sel.toArray(new Integer[0]);
-                java.util.Arrays.sort(idx, java.util.Collections.reverseOrder());
-                for (int i : idx) box.move(course, from, to, from.items.get(i));
-                sel.clear();
-                buildChips(); buildFiles(); updateSelbar();
-                Toast.makeText(this, "已移到「" + to.name + "」", Toast.LENGTH_SHORT).show();
+            .setItems(names.toArray(new String[0]), (d, w) -> {
+                Object t = targets.get(w);
+                if (t instanceof Models.Cat) {
+                    doMove(course, (Models.Cat) t);
+                } else {
+                    pickTargetCat((Models.Course) t);
+                }
             })
             .show();
+    }
+
+    private void pickTargetCat(Models.Course toC) {
+        String[] names = new String[toC.cats.size()];
+        for (int i = 0; i < names.length; i++) names[i] = toC.cats.get(i).icon + " " + toC.cats.get(i).name;
+        new AlertDialog.Builder(this)
+            .setTitle("放进「" + toC.name + "」哪个格子？")
+            .setItems(names, (d, w) -> doMove(toC, toC.cats.get(w)))
+            .show();
+    }
+
+    private void doMove(Models.Course toC, Models.Cat to) {
+        Models.Cat from = cat();
+        Integer[] idx = sel.toArray(new Integer[0]);
+        java.util.Arrays.sort(idx, java.util.Collections.reverseOrder());
+        for (int i : idx) box.move(course, from, toC, to, from.items.get(i));
+        sel.clear();
+        buildChips(); buildFiles(); updateSelbar();
+        Toast.makeText(this, "已移到「" + toC.name + "·" + to.name + "」", Toast.LENGTH_SHORT).show();
     }
 
     private static final String[] EMOJIS = {"课", "报", "作", "图", "记", "★"};
