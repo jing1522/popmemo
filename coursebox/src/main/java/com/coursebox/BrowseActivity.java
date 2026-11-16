@@ -346,23 +346,9 @@ public class BrowseActivity extends Activity {
     private void pickCourse() {
         int n = selCount();
         if (n == 0) return;
-        List<Models.Course> cs = store.courses;
-        if (cs.isEmpty()) { Toast.makeText(this, "先回首页建一门课", Toast.LENGTH_SHORT).show(); return; }
-        String[] names = new String[cs.size()];
-        for (int i = 0; i < names.length; i++) names[i] = cs.get(i).name;
-        new AlertDialog.Builder(this)
-            .setTitle("勾选的 " + n + " 份归到哪门课？")
-            .setItems(names, (d, w) -> pickCat(cs.get(w), n))
-            .show();
-    }
-
-    private void pickCat(Models.Course c, int n) {
-        String[] cn = new String[c.cats.size()];
-        for (int i = 0; i < cn.length; i++) cn[i] = c.cats.get(i).icon + " " + c.cats.get(i).name;
-        new AlertDialog.Builder(this)
-            .setTitle("放进「" + c.name + "」哪个格子？")
-            .setItems(cn, (d, w) -> runImport(c, c.cats.get(w), n))
-            .show();
+        // 一步选「课程·格子」，不用先选课再选格
+        Pick.target(this, store, "勾选的 " + n + " 份归到哪门课·格子？",
+            true, null, null, (c, cat) -> runImport(c, cat, n));
     }
 
     private void runImport(Models.Course c, Models.Cat cat, int n) {

@@ -28,6 +28,8 @@ public class CourseActivity extends Activity {
     private int catIdx = 0;
     private String query = "";
     private final Set<Integer> sel = new HashSet<>();
+    /** 圈选模式：不靠长按也能进，「选择」按钮可见 */
+    private boolean selectMode = false;
 
     private LinearLayout root;
     private LinearLayout band;
@@ -35,6 +37,7 @@ public class CourseActivity extends Activity {
     private GridLayout grid;
     private LinearLayout selbar;
     private TextView selN;
+    private TextView selToggle;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -61,9 +64,17 @@ public class CourseActivity extends Activity {
         buildSelbar();
     }
 
-    /* ---------- 格子内搜索 ---------- */
+    /* ---------- 格子内搜索 + 选择入口 ---------- */
 
     private void buildSearch() {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, -2);
+        rlp.leftMargin = Ui.dp(this, 22);
+        rlp.rightMargin = Ui.dp(this, 22);
+        rlp.topMargin = Ui.dp(this, 6);
+        root.addView(row, rlp); // 固定在第 3 位（band、chips 之后）
+
         EditText search = new EditText(this);
         search.setHint("搜这个格子");
         search.setSingleLine();
@@ -72,11 +83,18 @@ public class CourseActivity extends Activity {
         search.setHintTextColor(Ui.MUTED);
         search.setBackground(Ui.roundStroke(Color.WHITE, 99, Ui.RULE, this));
         search.setPadding(Ui.dp(this, 16), Ui.dp(this, 7), Ui.dp(this, 16), Ui.dp(this, 7));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.leftMargin = Ui.dp(this, 22);
-        lp.rightMargin = Ui.dp(this, 22);
-        lp.topMargin = Ui.dp(this, 6);
-        root.addView(search, lp); // 固定在第 3 位（band、chips 之后）
+        row.addView(search, new LinearLayout.LayoutParams(0, -2, 1));
+
+        // 可见的「选择」按钮，不用再猜长按
+        selToggle = Ui.tv(this, "选择", 12, Ui.ACCENT, android.graphics.Typeface.BOLD);
+        selToggle.setGravity(Gravity.CENTER);
+        selToggle.setBackground(Ui.roundStroke(0, 99, Ui.ACCENT, this));
+        selToggle.setPadding(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12), Ui.dp(this, 8));
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(-2, -2);
+        tlp.leftMargin = Ui.dp(this, 8);
+        selToggle.setOnClickListener(v -> toggleSelect());
+        row.addView(selToggle, tlp);
+
         search.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
             public void afterTextChanged(android.text.Editable e) {}
@@ -85,6 +103,27 @@ public class CourseActivity extends Activity {
                 buildFiles();
             }
         });
+    }
+
+    private void toggleSelect() {
+        selectMode = !selectMode;
+        if (!selectMode) sel.clear();
+        paintSelToggle();
+        buildFiles();
+        updateSelbar();
+    }
+
+    /** 退出圈选：只改状态，列表由调用方重建 */
+    private void exitSelect() {
+        selectMode = false;
+        sel.clear();
+        paintSelToggle();
+    }
+
+    private void paintSelToggle() {
+        if (selToggle == null) return;
+        selToggle.setText(selectMode ? "取消" : "选择");
+        selToggle.setTextColor(selectMode ? Ui.MUTED : Ui.ACCENT);
     }
 
     /* ---------- 顶部色带 ---------- */
@@ -160,17 +199,26 @@ public class CourseActivity extends Activity {
             t.setElevation(Ui.dp(this, 2));
             t.setPadding(Ui.dp(this, 14), Ui.dp(this, 9), Ui.dp(this, 14), Ui.dp(this, 9));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            lp.rightMargin = Ui.dp(this, 8);
+            lp.rightMargin = Ui.dp(this, 4);
             final int idx = i;
             t.setOnClickListener(v -> {
                 catIdx = idx;
-                sel.clear();
+                exitSelect();
                 buildChips();
                 buildFiles();
                 updateSelbar();
             });
             t.setOnLongClickListener(v -> { catOptions(c); return true; });
             chips.addView(t, lp);
+
+            // 常驻「⋯」：改名 / 排序 / 删格子，不用再靠长按去猜
+            TextView more = Ui.tv(this, "⋯", 15, Ui.MUTED, android.graphics.Typeface.BOLD);
+            more.setGravity(Gravity.CENTER);
+            more.setBackground(Ui.round(Color.WHITE, 99, this));
+            more.setOnClickListener(v -> catOptions(c));
+            LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(Ui.dp(this, 30), Ui.dp(this, 32));
+            mlp.rightMargin = Ui.dp(this, 10);
+            chips.addView(more, mlp);
         }
 
         TextView add = Ui.tv(this, "＋ 格子", 13, Ui.MUTED, android.graphics.Typeface.BOLD);
@@ -266,16 +314,16 @@ public class CourseActivity extends Activity {
         TextView tick = Ui.tv(this, "✓", 13, on ? Color.WHITE : Color.TRANSPARENT, android.graphics.Typeface.BOLD);
         tick.setGravity(Gravity.CENTER);
         tick.setBackground(Ui.roundStroke(on ? Ui.ACCENT : 0xD9FFFFFF, 99, on ? Ui.ACCENT : 0x401C2130, this));
-        tick.setVisibility(sel.isEmpty() ? View.GONE : View.VISIBLE);
+        tick.setVisibility(selectMode ? View.VISIBLE : View.GONE);
         FrameLayout.LayoutParams tickLp = new FrameLayout.LayoutParams(Ui.dp(this, 24), Ui.dp(this, 24));
         tickLp.gravity = Gravity.TOP | Gravity.RIGHT;
         tickLp.topMargin = Ui.dp(this, 8);
         tickLp.rightMargin = Ui.dp(this, 8);
         wrap.addView(tick, tickLp);
 
-        // 点按：已在圈选就继续圈选，否则调系统应用打开预览；长按进入圈选
+        // 点按：圈选模式下切换勾选，否则调系统应用打开预览；长按也能直接进圈选
         wrap.setOnClickListener(v -> {
-            if (!sel.isEmpty()) {
+            if (selectMode) {
                 if (sel.contains(idx)) sel.remove(idx); else sel.add(idx);
                 buildFiles();
                 updateSelbar();
@@ -284,6 +332,8 @@ public class CourseActivity extends Activity {
             }
         });
         wrap.setOnLongClickListener(v -> {
+            selectMode = true;
+            paintSelToggle();
             if (sel.contains(idx)) sel.remove(idx); else sel.add(idx);
             buildFiles();
             updateSelbar();
@@ -300,8 +350,8 @@ public class CourseActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (!sel.isEmpty()) {
-            sel.clear();
+        if (selectMode) {
+            exitSelect();
             buildFiles();
             updateSelbar();
         } else {
@@ -333,6 +383,9 @@ public class CourseActivity extends Activity {
             Models.Cat c = cat();
             for (int i : sel) if (box.export(c.items.get(i))) ok++;
             Toast.makeText(this, "已导出 " + ok + " 份到 Download/课匣导出", Toast.LENGTH_LONG).show();
+            exitSelect();
+            buildFiles();
+            updateSelbar();
         });
         addSelBtn("删除", true, v -> {
             Models.Cat c = cat();
@@ -340,7 +393,7 @@ public class CourseActivity extends Activity {
             java.util.Arrays.sort(idx, java.util.Collections.reverseOrder());
             for (int i : idx) box.delete(course, c, c.items.get(i));
             int n = idx.length;
-            sel.clear();
+            exitSelect();
             buildChips(); buildFiles(); buildBand(); updateSelbar();
             Toast.makeText(this, n + " 份已放进回收站", Toast.LENGTH_SHORT).show();
         });
@@ -371,40 +424,10 @@ public class CourseActivity extends Activity {
     /* ---------- 弹窗 ---------- */
 
     private void moveDialog() {
-        Models.Cat from = cat();
-        // 本课其他格子 + 其他课程（选了课程再选格子，待整理归档就靠这条路）
-        java.util.List<Object> targets = new java.util.ArrayList<>();
-        java.util.List<String> names = new java.util.ArrayList<>();
-        for (Models.Cat c : course.cats) {
-            if (c == from) continue;
-            targets.add(c);
-            names.add(c.icon + " " + c.name);
-        }
-        for (Models.Course oc : store.courses) {
-            if (oc == course) continue;
-            targets.add(oc);
-            names.add("→ " + oc.name);
-        }
-        new AlertDialog.Builder(this)
-            .setTitle("移动 " + sel.size() + " 份到…")
-            .setItems(names.toArray(new String[0]), (d, w) -> {
-                Object t = targets.get(w);
-                if (t instanceof Models.Cat) {
-                    doMove(course, (Models.Cat) t);
-                } else {
-                    pickTargetCat((Models.Course) t);
-                }
-            })
-            .show();
-    }
-
-    private void pickTargetCat(Models.Course toC) {
-        String[] names = new String[toC.cats.size()];
-        for (int i = 0; i < names.length; i++) names[i] = toC.cats.get(i).icon + " " + toC.cats.get(i).name;
-        new AlertDialog.Builder(this)
-            .setTitle("放进「" + toC.name + "」哪个格子？")
-            .setItems(names, (d, w) -> doMove(toC, toC.cats.get(w)))
-            .show();
+        if (sel.isEmpty()) return;
+        // 一步选「课程·格子」，待整理归档也走这条路
+        Pick.target(this, store, "移动 " + sel.size() + " 份到…", true,
+            course, cat(), this::doMove);
     }
 
     private void doMove(Models.Course toC, Models.Cat to) {
@@ -412,7 +435,7 @@ public class CourseActivity extends Activity {
         Integer[] idx = sel.toArray(new Integer[0]);
         java.util.Arrays.sort(idx, java.util.Collections.reverseOrder());
         for (int i : idx) box.move(course, from, toC, to, from.items.get(i));
-        sel.clear();
+        exitSelect();
         buildChips(); buildFiles(); updateSelbar();
         Toast.makeText(this, "已移到「" + toC.name + "·" + to.name + "」", Toast.LENGTH_SHORT).show();
     }

@@ -338,39 +338,22 @@ public class ImportActivity extends Activity {
     }
 
     private void changeTarget(Row r, TextView tv) {
-        List<Models.Course> cs = store.courses;
-        String[] names = new String[cs.size()];
-        for (int i = 0; i < cs.size(); i++) names[i] = cs.get(i).name;
-        new AlertDialog.Builder(this)
-            .setTitle("这门文件属于哪门课？")
-            .setItems(names, (d, w) -> {
-                r.course = cs.get(w);
-                String[] cn = new String[r.course.cats.size()];
-                for (int i = 0; i < cn.length; i++) cn[i] = r.course.cats.get(i).icon + " " + r.course.cats.get(i).name;
-                new AlertDialog.Builder(this)
-                    .setTitle("放进哪个格子？")
-                    .setItems(cn, (d2, w2) -> {
-                        r.cat = r.course.cats.get(w2);
-                        tv.setText(r.course.name + "·" + r.cat.name + " ›");
-                    })
-                    .show();
-            })
-            .show();
+        // 一步选「课程·格子」，原来是先选课再选格两段弹窗
+        Pick.target(this, store, "这份文件归到哪门课·格子？", true, null, null, (c, cat) -> {
+            r.course = c;
+            r.cat = cat;
+            tv.setText(c.name + "·" + cat.name + " ›");
+        });
     }
 
     /* ---------- 执行：复制 → 校验 → 删原文件 ---------- */
 
+    /** 按钮上已写明会删原文件，不再弹第二次确认 */
     private void confirmRun() {
         int n = 0;
         for (Row r : rows) if (r.include) n++;
         if (n == 0) { Toast.makeText(this, "清单是空的", Toast.LENGTH_SHORT).show(); return; }
-        final int fn = n;
-        new AlertDialog.Builder(this)
-            .setTitle("确认真整理？")
-            .setMessage("将移动 " + fn + " 份文件进课匣，并删除原位置的文件。\n每份都会校验，失败的不会删。")
-            .setPositiveButton("开始", (d, w) -> runImport())
-            .setNegativeButton("再看看", null)
-            .show();
+        runImport();
     }
 
     private void runImport() {

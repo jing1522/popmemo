@@ -36,13 +36,9 @@ public class CaptureActivity extends Activity {
             if (us != null) uris.addAll(us);
         }
         if (uris.isEmpty()) { finish(); return; }
-        pickCourse();
-    }
-
-    private void pickCourse() {
-        List<Models.Course> cs = new ArrayList<>();
-        for (Models.Course c : store.courses) if (!"inbox".equals(c.id)) cs.add(c);
-        if (cs.isEmpty()) {
+        boolean hasCourse = false;
+        for (Models.Course c : store.courses) if (!"inbox".equals(c.id)) hasCourse = true;
+        if (!hasCourse) {
             new AlertDialog.Builder(this)
                 .setTitle("课匣")
                 .setMessage("还没有课程，先打开课匣新建一门课吧")
@@ -51,23 +47,10 @@ public class CaptureActivity extends Activity {
                 .show();
             return;
         }
-        String[] names = new String[cs.size()];
-        for (int i = 0; i < cs.size(); i++) names[i] = cs.get(i).name;
-        new AlertDialog.Builder(this)
-            .setTitle("收进哪门课？（" + uris.size() + " 份）")
-            .setItems(names, (d, w) -> pickCat(cs.get(w)))
-            .setOnCancelListener(d -> finish())
-            .show();
-    }
-
-    private void pickCat(Models.Course c) {
-        String[] names = new String[c.cats.size()];
-        for (int i = 0; i < c.cats.size(); i++) names[i] = c.cats.get(i).icon + " " + c.cats.get(i).name;
-        new AlertDialog.Builder(this)
-            .setTitle("放进「" + c.name + "」哪个格子？")
-            .setItems(names, (d, w) -> doImport(c, c.cats.get(w)))
-            .setOnCancelListener(d -> finish())
-            .show();
+        // 一步选「课程·格子」，不再先问课程再问格子
+        AlertDialog d = Pick.target(this, store, "收进哪门课·格子？（" + uris.size() + " 份）",
+            false, null, null, this::doImport);
+        if (d != null) d.setOnCancelListener(x -> finish()); // 取消就退出，别留个空窗口
     }
 
     private void doImport(Models.Course c, Models.Cat cat) {
