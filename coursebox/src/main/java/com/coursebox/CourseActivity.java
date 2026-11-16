@@ -2,7 +2,6 @@ package com.coursebox;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -17,7 +16,6 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.File;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -41,6 +39,7 @@ public class CourseActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Thumb.init(this);
         store = Store.get(this);
         box = new Box(this);
         course = store.course(getIntent().getStringExtra("cid"));
@@ -241,9 +240,8 @@ public class CourseActivity extends Activity {
         if (Ui.isImg(it.name)) {
             ImageView iv = new ImageView(this);
             iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            File f = box.fileOf(course, cat(), it);
-            Bitmap bm = Thumb.get(f, Ui.dp(this, 180));
-            if (bm != null) iv.setImageBitmap(bm);
+            // 后台解码 + 磁盘缓存，切格子/滚动不再卡主线程
+            Thumb.load(box.fileOf(course, cat(), it), Ui.dp(this, 180), iv);
             thumb.addView(iv, new FrameLayout.LayoutParams(-1, -1));
         } else {
             TextView tl = Ui.tv(this, Ui.typeLabel(type), 15, Color.WHITE, android.graphics.Typeface.BOLD);

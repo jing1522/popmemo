@@ -6,7 +6,6 @@ import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -54,6 +53,7 @@ public class ImportActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Thumb.init(this);
         store = Store.get(this);
         box = new Box(this);
         build();
@@ -285,8 +285,8 @@ public class ImportActivity extends Activity {
                 iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
                 iv.setClipToOutline(true);
                 iv.setBackground(Ui.round(0x14000000, 8, this));
-                Bitmap bm = Thumb.get(getContentResolver(), r.uri, Ui.dp(this, 120));
-                if (bm != null) iv.setImageBitmap(bm);
+                // 后台解码，扫几百张图也不卡列表
+                Thumb.load(getContentResolver(), r.uri, Ui.dp(this, 120), iv);
                 LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44));
                 ilp.leftMargin = Ui.dp(this, 10);
                 row.addView(iv, ilp);
