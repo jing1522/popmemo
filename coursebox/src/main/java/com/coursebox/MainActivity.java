@@ -2,12 +2,14 @@ package com.coursebox;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.DragEvent;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
@@ -30,8 +32,11 @@ public class MainActivity extends Activity {
 
     private Store store;
     private Box box;
+    private ScrollView wallSv;
     private LinearLayout root;
     private String query = "";
+    /** 正在拖的课程下标，-1 表示没在拖 */
+    private int dragFrom = -1;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -142,19 +147,19 @@ public class MainActivity extends Activity {
         root.addView(search, sLp);
 
         // 课程墙（输入搜索词时切换为结果列表）
-        final ScrollView sv = new ScrollView(this);
-        sv.addView(wallView(), new ScrollView.LayoutParams(-1, -2));
+        wallSv = new ScrollView(this);
+        wallSv.addView(wallView(), new ScrollView.LayoutParams(-1, -2));
         LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(-1, 0, 1);
         svLp.topMargin = Ui.dp(this, 14);
-        root.addView(sv, svLp);
+        root.addView(wallSv, svLp);
 
         search.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
             public void afterTextChanged(android.text.Editable e) {}
             public void onTextChanged(CharSequence s, int a, int b, int c) {
                 query = s.toString().trim().toLowerCase();
-                sv.removeAllViews();
-                sv.addView(query.isEmpty() ? wallView() : resultsView(),
+                wallSv.removeAllViews();
+                wallSv.addView(query.isEmpty() ? wallView() : resultsView(),
                     new ScrollView.LayoutParams(-1, -2));
             }
         });
@@ -169,7 +174,12 @@ public class MainActivity extends Activity {
             empty.setLineSpacing(Ui.dp(this, 6), 1);
             grid.addView(empty, cellLp(-1));
         }
-        for (Models.Course c : store.courses) grid.addView(courseCard(c), cellLp(0));
+        for (int i = 0; i < store.courses.size(); i++) {
+            View card = courseCard(store.courses.get(i));
+            card.setTag(i);
+            setupCourseDrag(card);
+            grid.addView(card, cellLp(0));
+        }
         return grid;
     }
 
@@ -256,6 +266,55 @@ public class MainActivity extends Activity {
             startActivity(i);
         });
         return card;
+    }
+
+    /** 长按课程卡直接拖，松手时插到目标位置；顺序即 store.courses 顺序 */
+    private void setupCourseDrag(View card) {
+        card.setOnLongClickListener(v -> {
+            dragFrom = (int) v.getTag();
+            ClipData data = ClipData.newPlainText("", "");
+            v.startDragAndDrop(data, new View.DragShadowBuilder(v), null, 0);
+            return true;
+        });
+        card.setOnDragListener((v, e) -> {
+            switch (e.getAction()) {
+                case DragEvent.ACTION_DRAG_STARTED:
+                    return true;
+                case DragEvent.ACTION_DRAG_ENTERED:
+                    if ((int) v.getTag() != dragFrom) {
+                        v.animate().scaleX(0.94f).scaleY(0.94f).setDuration(110).start();
+                    }
+                    return true;
+                case DragEvent.ACTION_DRAG_EXITED:
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(110).start();
+                    return true;
+                case DragEvent.ACTION_DROP: {
+                    int to = (int) v.getTag();
+                    if (dragFrom >= 0 && dragFrom != to
+                        && dragFrom < store.courses.size() && to < store.courses.size()) {
+                        Models.Course moved = store.courses.remove(dragFrom);
+                        store.courses.add(to, moved);
+                        store.save();
+                        refreshWall();
+                    }
+                    return true;
+                }
+                case DragEvent.ACTION_DRAG_ENDED:
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(110).start();
+                    dragFrom = -1;
+                    return true;
+            }
+            return false;
+        });
+    }
+
+    /** 重排课程墙。搜索状态下重排的是结果列表，不影响搜索词。 */
+    private void refreshWall() {
+        if (wallSv == null) return;
+        wallSv.removeAllViews();
+        wallSv.addView(query.isEmpty() ? wallView() : resultsView(),
+            new ScrollView.LayoutParams(-1, -2));
+        wallSv.scrollTo(0, 0);
     }
 
     /* ---------- 自定义背景图 ---------- */

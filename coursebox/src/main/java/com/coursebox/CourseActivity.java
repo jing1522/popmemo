@@ -2,8 +2,10 @@ package com.coursebox;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.view.DragEvent;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
@@ -26,6 +28,8 @@ public class CourseActivity extends Activity {
     private Box box;
     private Models.Course course;
     private int catIdx = 0;
+    /** 正在拖的格子下标，-1 表示没在拖 */
+    private int dragCatFrom = -1;
     private String query = "";
     private final Set<Integer> sel = new HashSet<>();
     /** 圈选模式：不靠长按也能进，「选择」按钮可见 */
@@ -198,8 +202,6 @@ public class CourseActivity extends Activity {
             t.setBackground(on ? Ui.round(Ui.INK, 99, this) : Ui.round(Color.WHITE, 99, this));
             t.setElevation(Ui.dp(this, 2));
             t.setPadding(Ui.dp(this, 14), Ui.dp(this, 9), Ui.dp(this, 14), Ui.dp(this, 9));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            lp.rightMargin = Ui.dp(this, 4);
             final int idx = i;
             t.setOnClickListener(v -> {
                 catIdx = idx;
@@ -208,17 +210,26 @@ public class CourseActivity extends Activity {
                 buildFiles();
                 updateSelbar();
             });
-            t.setOnLongClickListener(v -> { catOptions(c); return true; });
-            chips.addView(t, lp);
 
-            // 常驻「⋯」：改名 / 排序 / 删格子，不用再靠长按去猜
+            // 常驻「⋯」：改名 / 删格子；排序改成直接拖
             TextView more = Ui.tv(this, "⋯", 15, Ui.MUTED, android.graphics.Typeface.BOLD);
             more.setGravity(Gravity.CENTER);
             more.setBackground(Ui.round(Color.WHITE, 99, this));
             more.setOnClickListener(v -> catOptions(c));
             LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(Ui.dp(this, 30), Ui.dp(this, 32));
-            mlp.rightMargin = Ui.dp(this, 10);
-            chips.addView(more, mlp);
+            mlp.rightMargin = Ui.dp(this, 6);
+
+            // 格子 + ⋯ 包成一块，拖动时一起走
+            LinearLayout chipWrap = new LinearLayout(this);
+            chipWrap.setOrientation(LinearLayout.HORIZONTAL);
+            chipWrap.setGravity(Gravity.CENTER_VERTICAL);
+            chipWrap.setTag(i);
+            chipWrap.addView(t);
+            chipWrap.addView(more, mlp);
+            setupChipDrag(chipWrap, t);
+            LinearLayout.LayoutParams wlp = new LinearLayout.LayoutParams(-2, -2);
+            wlp.rightMargin = Ui.dp(this, 4);
+            chips.addView(chipWrap, wlp);
         }
 
         TextView add = Ui.tv(this, "＋ 格子", 13, Ui.MUTED, android.graphics.Typeface.BOLD);
@@ -460,6 +471,51 @@ public class CourseActivity extends Activity {
     }
 
     /* ---------- 格子改名/删除 ---------- */
+
+    /** 长按格子横向拖，松手换位置；选中态跟着原来选中的格子走 */
+    private void setupChipDrag(View wrap, View handle) {
+        // 文字本身可点（切换格子），会吃掉长按，所以长按要挂在它身上
+        handle.setOnLongClickListener(v -> {
+            dragCatFrom = (int) wrap.getTag();
+            wrap.startDragAndDrop(ClipData.newPlainText("", ""),
+                new View.DragShadowBuilder(wrap), null, 0);
+            return true;
+        });
+        wrap.setOnDragListener((v, e) -> {
+            switch (e.getAction()) {
+                case DragEvent.ACTION_DRAG_STARTED:
+                    return true;
+                case DragEvent.ACTION_DRAG_ENTERED:
+                    if ((int) v.getTag() != dragCatFrom) {
+                        v.animate().scaleX(0.94f).scaleY(0.94f).setDuration(100).start();
+                    }
+                    return true;
+                case DragEvent.ACTION_DRAG_EXITED:
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(100).start();
+                    return true;
+                case DragEvent.ACTION_DROP: {
+                    int to = (int) v.getTag();
+                    if (dragCatFrom >= 0 && dragCatFrom != to
+                        && dragCatFrom < course.cats.size() && to < course.cats.size()) {
+                        Models.Cat selected = cat();
+                        Models.Cat moved = course.cats.remove(dragCatFrom);
+                        course.cats.add(to, moved);
+                        store.save();
+                        catIdx = Math.max(0, course.cats.indexOf(selected));
+                        buildChips();
+                        buildFiles();
+                        updateSelbar();
+                    }
+                    return true;
+                }
+                case DragEvent.ACTION_DRAG_ENDED:
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(100).start();
+                    dragCatFrom = -1;
+                    return true;
+            }
+            return false;
+        });
+    }
 
     private void catOptions(Models.Cat c) {
         new AlertDialog.Builder(this)
