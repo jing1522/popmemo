@@ -146,7 +146,9 @@ public class Store {
             FileOutputStream fos = new FileOutputStream(file());
             fos.write(root.toString().getBytes("UTF-8"));
             fos.close();
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Ui.warn(ctx, "这次改动没存上，可能是存储空间不足");
+        }
     }
 
     private void load() {
@@ -204,6 +206,12 @@ public class Store {
                 t.catName = to.optString("catName", "");
                 trash.add(t);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            // 索引坏了别静默当空：留一份坏文件，至少还有手工救回来的可能
+            File f = file();
+            File bad = new File(f.getParentFile(), "index.bad.json");
+            if (f.exists() && !bad.exists()) f.renameTo(bad);
+            Ui.warn(ctx, "索引读不出来，已备份为 index.bad.json");
+        }
     }
 }

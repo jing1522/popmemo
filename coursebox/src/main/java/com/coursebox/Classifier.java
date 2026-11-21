@@ -17,6 +17,8 @@ public class Classifier {
     public static class Guess {
         public Models.Course course;
         public Models.Cat cat;
+        /** true = 课程名按文件名/路径匹配到了；false = 落进了「待整理」，属于靠猜 */
+        public boolean matched;
     }
 
     /** 在课程列表里猜这份文件该去哪 */
@@ -28,9 +30,9 @@ public class Classifier {
         for (Models.Course c : courses) {
             if ("inbox".equals(c.id)) continue;
             String n = c.name.toLowerCase();
-            if (hay.contains(n)) { g.course = c; break; }
+            if (hay.contains(n)) { g.course = c; g.matched = true; break; }
             String short2 = n.replace("大学", "");
-            if (short2.length() >= 2 && hay.contains(short2)) { g.course = c; break; }
+            if (short2.length() >= 2 && hay.contains(short2)) { g.course = c; g.matched = true; break; }
         }
         if (g.course == null) g.course = inbox;
         g.cat = guessCat(g.course, fileName, parentPath);

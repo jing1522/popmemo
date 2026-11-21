@@ -105,4 +105,19 @@ public class Ui {
         java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("MM-dd");
         return f.format(new java.util.Date(at));
     }
+
+    private static String lastWarn;
+    private static long lastWarnAt;
+
+    /** 出错时说一句；同一句 3 秒内不重复弹，后台线程调用也安全。 */
+    public static void warn(Context c, String msg) {
+        if (c == null || msg == null) return;
+        long now = System.currentTimeMillis();
+        if (msg.equals(lastWarn) && now - lastWarnAt < 3000) return;
+        lastWarn = msg;
+        lastWarnAt = now;
+        final Context app = c.getApplicationContext();
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                android.widget.Toast.makeText(app, msg, android.widget.Toast.LENGTH_LONG).show());
+    }
 }

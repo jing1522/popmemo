@@ -111,7 +111,14 @@ public class Box {
         String id = java.util.UUID.randomUUID().toString().substring(0, 8);
         File dst = new File(trashDir, id);
         if (src.exists() && !src.renameTo(dst)) {
-            try { copy(src, dst); src.delete(); } catch (Exception ignored) {}
+            try {
+                copy(src, dst);
+                src.delete();
+            } catch (Exception e) {
+                // 挪不进回收站就别删记录，不然文件还在、列表里却没了
+                Ui.warn(ctx, "「" + it.name + "」没能移入回收站，已保留原文件");
+                return;
+            }
         }
         Models.TrashItem t = new Models.TrashItem();
         t.name = it.name;
@@ -194,9 +201,28 @@ public class Box {
         File src = new File(root(), it.rel);
         File dir = new File(root(), toC.id + "/" + to.id);
         if (!dir.exists()) dir.mkdirs();
-        File dst = new File(dir, src.getName());
-        if (src.exists() && !dst.exists()) src.renameTo(dst);
+        // 目标格子里有同名文件时加序号，否则记录会指向别人的文件
+        File dst = new File(dir, it.name);
+        int n = 1;
+        String base = it.name, ext = "";
+        int dot = it.name.lastIndexOf('.');
+        if (dot > 0) { base = it.name.substring(0, dot); ext = it.name.substring(dot); }
+        while (dst.exists()) dst = new File(dir, base + "(" + (n++) + ")" + ext);
+        if (!src.exists()) {
+            Ui.warn(ctx, "「" + it.name + "」的原文件找不到了，没移动");
+            return;
+        }
+        if (!src.renameTo(dst)) {
+            try {
+                copy(src, dst);
+                src.delete();
+            } catch (Exception e) {
+                Ui.warn(ctx, "「" + it.name + "」没能移动，已留在原格子");
+                return;
+            }
+        }
         from.items.remove(it);
+        it.name = dst.getName();
         it.rel = toC.id + "/" + to.id + "/" + dst.getName();
         to.items.add(0, it);
         store.save();
@@ -221,6 +247,7 @@ public class Box {
             os.close();
             return true;
         } catch (Exception e) {
+            Ui.warn(ctx, "「" + it.name + "」导出失败");
             return false;
         }
     }

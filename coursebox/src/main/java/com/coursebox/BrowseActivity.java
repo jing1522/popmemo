@@ -33,7 +33,7 @@ public class BrowseActivity extends Activity {
     private static final int REQ_TREE = 43;
 
     private static class Doc {
-        Uri uri; String id; String name; long size; boolean dir; boolean sel;
+        Uri uri; String id; String name; long size; boolean dir; boolean sel; boolean imported;
     }
 
     private Store store;
@@ -249,7 +249,9 @@ public class BrowseActivity extends Activity {
                     }
                     c.close();
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                Ui.warn(this, "这个文件夹读不了，可能授权已失效");
+            }
             docs.addAll(dirs);
             docs.addAll(files);
             runOnUiThread(() -> {
@@ -286,7 +288,9 @@ public class BrowseActivity extends Activity {
             nm.setSingleLine();
             nm.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
             mid.addView(nm);
-            mid.addView(Ui.tv(this, d.dir ? "文件夹" : Ui.sizeText(d.size), 11, Ui.MUTED, 0));
+            String sub = d.dir ? "文件夹" : Ui.sizeText(d.size);
+            if (d.imported) sub = sub + " · 已收进";
+            mid.addView(Ui.tv(this, sub, 11, Ui.MUTED, 0));
             row.addView(mid, new LinearLayout.LayoutParams(0, -2, 1));
 
             if (d.dir) {
@@ -299,7 +303,9 @@ public class BrowseActivity extends Activity {
             } else {
                 if (d.sel) row.addView(Ui.tv(this, "✓", 16, Ui.ACCENT, android.graphics.Typeface.BOLD));
                 row.setOnClickListener(v -> {
-                    if (selCount() > 0) { d.sel = !d.sel; renderDocs(); }
+                    if (d.imported) {
+                        Toast.makeText(this, "这份已经收进匣子了，原件没删掉", Toast.LENGTH_SHORT).show();
+                    } else if (selCount() > 0) { d.sel = !d.sel; renderDocs(); }
                     else preview(d);
                 });
                 row.setOnLongClickListener(v -> { d.sel = !d.sel; renderDocs(); return true; });
@@ -354,29 +360,47 @@ public class BrowseActivity extends Activity {
     private void runImport(Models.Course c, Models.Cat cat, int n) {
         status.setText("收进匣子中…");
         new Thread(() -> {
-            int ok = 0, dup = 0, fail = 0;
+            int ok = 0, dup = 0, fail = 0, keep = 0;
             ContentResolver cr = getContentResolver();
             List<Doc> done = new ArrayList<>();
             for (Doc d : new ArrayList<>(docs)) {
                 if (!d.sel || d.dir) continue;
+                Models.Item it;
                 try {
                     InputStream in = cr.openInputStream(d.uri);
-                    Models.Item it = box.importStream(in, d.name, c, cat);
-                    DocumentsContract.deleteDocument(cr, d.uri); // 收进成功/重复 → 删原文件
-                    if (it == null) dup++; else ok++;
-                    done.add(d);
+                    it = box.importStream(in, d.name, c, cat);
                 } catch (Exception e) {
-                    fail++; // 失败绝不删原文件
+                    fail++; // 导入失败，原文件绝不动
+                    continue;
+                }
+                if (it == null) dup++; else ok++;
+                // 删原件单独算：删不掉不代表没收进，也不该记成导入失败
+                boolean deleted;
+                try {
+                    deleted = DocumentsContract.deleteDocument(cr, d.uri);
+                } catch (Exception e) {
+                    deleted = false;
+                }
+                if (deleted) {
+                    done.add(d);
+                } else {
+                    keep++;
+                    d.imported = true; // 留在列表里标「已收进」，免得重复点
+                    d.sel = false;
                 }
             }
-            final int fOk = ok, fDup = dup, fFail = fail;
+            final int fOk = ok, fDup = dup, fFail = fail, fKeep = keep;
             runOnUiThread(() -> {
                 for (Doc d : done) docs.remove(d);
                 renderDocs();
                 status.setText("收进 " + fOk + " 份" + (fDup > 0 ? "，重复清理 " + fDup + " 份" : "")
-                    + (fFail > 0 ? "，失败 " + fFail + " 份（原文件未动）" : ""));
-                Toast.makeText(this, fFail > 0 ? "有 " + fFail + " 份失败，原文件还在" : "都收好了",
-                    Toast.LENGTH_SHORT).show();
+                    + (fFail > 0 ? "，失败 " + fFail + " 份（原文件未动）" : "")
+                    + (fKeep > 0 ? "，" + fKeep + " 份原件删不掉" : ""));
+                String tip;
+                if (fFail > 0) tip = "有 " + fFail + " 份失败，原文件还在";
+                else if (fKeep > 0) tip = "已收进，但有 " + fKeep + " 份原件删不掉";
+                else tip = "都收好了";
+                Toast.makeText(this, tip, Toast.LENGTH_SHORT).show();
             });
         }).start();
     }
@@ -444,7 +468,9 @@ public class BrowseActivity extends Activity {
         try {
             getContentResolver().takePersistableUriPermission(t,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Ui.warn(this, "文件夹授权没记住，下次启动可能要重新选一次");
+        }
         Set<String> ts = trees();
         ts.add(t.toString());
         sp().edit().putStringSet("trees", ts).apply();
