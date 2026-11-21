@@ -16,6 +16,7 @@ public class MemoStore {
     private static final String EMPTY = "[]";
 
     private final SharedPreferences sp;
+    private final Context app;
 
     /** 服务改了数据之后，让前台界面自己刷新一下。 */
     public interface OnChangeListener {
@@ -37,6 +38,7 @@ public class MemoStore {
 
     public MemoStore(Context context) {
         this.sp = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        this.app = context.getApplicationContext();
     }
 
     public List<Memo> load() {
@@ -47,8 +49,17 @@ public class MemoStore {
             for (int i = 0; i < arr.length(); i++) {
                 out.add(Memo.fromJson(arr.getJSONObject(i)));
             }
-        } catch (Exception ignored) {
-            // 数据坏了就当空的，不让 App 起不来。
+        } catch (Exception e) {
+            // 数据坏了也别当成空的悄悄吞掉：原文先留一份，再告诉用户
+            try {
+                java.io.File bad = new java.io.File(app.getFilesDir(), "memos.bad.json");
+                if (!bad.exists()) {
+                    java.io.FileWriter w = new java.io.FileWriter(bad);
+                    w.write(raw);
+                    w.close();
+                }
+            } catch (Exception ignored) {}
+            Ui.warn(app, "待办数据读取失败，原文已备份");
         }
         return out;
     }

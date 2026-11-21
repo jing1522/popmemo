@@ -27,7 +27,15 @@
         </activity>
 
         <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".WeekActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".TimetableActivity"
             android:exported="false" />
 
         <service

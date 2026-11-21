@@ -5,7 +5,6 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -20,9 +19,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.PowerManager;
 import android.provider.Settings;
-import android.text.InputType;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.style.ForegroundColorSpan;
@@ -35,16 +32,12 @@ import android.view.WindowInsets;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.BaseAdapter;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -99,7 +92,7 @@ public class MainActivity extends Activity {
         doneFooter = findViewById(R.id.done_footer);
         laterFooter = findViewById(R.id.later_footer);
         permissionBanner = findViewById(R.id.permission_banner);
-        Button grantOverlay = findViewById(R.id.grant_overlay);
+        View grantOverlay = findViewById(R.id.grant_overlay);
 
         undoBar = findViewById(R.id.undo_bar);
 
@@ -119,9 +112,24 @@ public class MainActivity extends Activity {
                 top = insets.getSystemWindowInsetTop();
                 bottom = insets.getSystemWindowInsetBottom();
             }
-            v.setPadding(dp(12), dp(12) + top, dp(12), dp(12) + bottom);
+            View page = findViewById(R.id.page_today);
+            page.setPadding(0, top, 0, dp(62) + bottom);
+            View nav = findViewById(R.id.nav);
+            android.widget.FrameLayout.LayoutParams nlp =
+                    (android.widget.FrameLayout.LayoutParams) nav.getLayoutParams();
+            nlp.height = dp(62) + bottom;
+            nav.setLayoutParams(nlp);
+            nav.setPadding(0, 0, 0, bottom);
             return insets;
         });
+
+        // 顶栏就一行日期，多了反而乱
+        TextView dateText = findViewById(R.id.date_text);
+        Calendar cal = Calendar.getInstance();
+        String[] week = {"日", "一", "二", "三", "四", "五", "六"};
+        dateText.setText((cal.get(Calendar.MONTH) + 1) + " 月 "
+                + cal.get(Calendar.DAY_OF_MONTH) + " 日 · 周"
+                + week[cal.get(Calendar.DAY_OF_WEEK) - 1]);
         // 等布局量出尺寸再上背景，好按比例裁图。
         root.post(this::applyBackground);
 
@@ -138,7 +146,12 @@ public class MainActivity extends Activity {
         });
 
         grantOverlay.setOnClickListener(v -> openOverlaySettings());
-        findViewById(R.id.overflow).setOnClickListener(v -> showCleanupMenu());
+        findViewById(R.id.add_btn).setOnClickListener(v -> addCurrentInput());
+        // 底部两个标签是平级页面，直接进去；待办这一页就是当前页
+        findViewById(R.id.nav_time).setOnClickListener(v ->
+                startActivity(new Intent(this, TimetableActivity.class)));
+        findViewById(R.id.nav_settings).setOnClickListener(v ->
+                startActivity(new Intent(this, SettingsActivity.class)));
         doneFooter.setOnClickListener(v -> {
             showDone = !showDone;
             refresh();
@@ -193,12 +206,15 @@ public class MainActivity extends Activity {
         super.onResume();
         refresh();
         ensureService();
+        // 设置页里可能换了背景，回来重新铺一次。
+        applyBackground();
         // 自己家里不摆球，碍事；退出去再摆回来。
-        FloatingBall.hide();
+        FloatingBall.setAppVisible(true);
     }
 
     @Override
     protected void onPause() {
+        FloatingBall.setAppVisible(false);
         FloatingBall.sync(this);
         super.onPause();
     }
@@ -385,117 +401,9 @@ public class MainActivity extends Activity {
         undoBar.setVisibility(View.GONE);
     }
 
-    /** 「⋯」里的清理动作。 */
-    private void showCleanupMenu() {
-        SharedPreferences prefs = getSharedPreferences("popmemo", MODE_PRIVATE);
-        boolean ballOn = prefs.getBoolean("ball_enabled", true);
-        int every = Math.max(1, prefs.getInt("popup_every", 5));
-        String everyLabel = every == 1 ? "弹窗频率：每次解锁都弹" : "弹窗频率：每 " + every + " 次解锁";
-        new AlertDialog.Builder(this)
-                .setTitle("设置")
-                .setItems(new String[]{"背景：换张图…", "背景：恢复默认", "角色提醒…", "后台保活…",
-                                "悬浮球：" + (ballOn ? "开" : "关"), everyLabel,
-                                "清空已经办完的", "清空全部记录", "关于 PopMemo"},
-                        (dialog, which) -> {
-                            if (which == 0) {
-                                pickBackgroundImage();
-                            } else if (which == 1) {
-                                resetBackground();
-                            } else if (which == 2) {
-                                showCharacterDialog();
-                            } else if (which == 3) {
-                                showKeepAlive();
-                            } else if (which == 4) {
-                                toggleBall();
-                            } else if (which == 5) {
-                                pickPopupEvery();
-                            } else if (which == 8) {
-                                showAbout();
-                            } else {
-                                confirmClear(which == 6);
-                            }
-                        })
-                .show();
-    }
-
-    /** 屏幕边上的小球：点开看今天的事。 */
-    private void toggleBall() {
-        SharedPreferences prefs = getSharedPreferences("popmemo", MODE_PRIVATE);
-        boolean now = !prefs.getBoolean("ball_enabled", true);
-        prefs.edit().putBoolean("ball_enabled", now).apply();
-        Toast.makeText(this, now ? "小球摆出来了" : "小球收起来了", Toast.LENGTH_SHORT).show();
-    }
-
-    /** 解锁几次才弹一次。红卡（今天到期/已过期）不受这个限制，照样弹。 */
-    private void pickPopupEvery() {
-        String[] options = {"1 次（每次都弹）", "2 次", "3 次", "5 次", "10 次"};
-        int[] values = {1, 2, 3, 5, 10};
-        new AlertDialog.Builder(this)
-                .setTitle("解锁几次才弹一次？")
-                .setItems(options, (dialog, which) -> getSharedPreferences("popmemo", MODE_PRIVATE)
-                        .edit().putInt("popup_every", values[which]).apply())
-                .show();
-    }
-
     // ---- 背景 ----
 
-    private static final int REQ_PICK_BG = 7;
     private static final String BG_FILE = "bg.jpg";
-
-    private void pickBackgroundImage() {
-        Intent intent = new Intent(Intent.ACTION_PICK,
-                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        try {
-            startActivityForResult(intent, REQ_PICK_BG);
-        } catch (Exception e) {
-            Toast.makeText(this, "打不开相册", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void resetBackground() {
-        //noinspection ResultOfMethodCallIgnored
-        new File(getFilesDir(), BG_FILE).delete();
-        applyBackground();
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
-            return;
-        }
-        if (requestCode == REQ_PICK_BG) {
-            if (savePickedImage(data.getData(), BG_FILE)) {
-                applyBackground();
-            } else {
-                Toast.makeText(this, "这张图读不出来", Toast.LENGTH_SHORT).show();
-            }
-        } else if (requestCode == REQ_PICK_AVATAR) {
-            if (savePickedImage(data.getData(), AVATAR_FILE)) {
-                updateAvatarState();
-            } else {
-                Toast.makeText(this, "这张图读不出来", Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
-    /** 选中的图复制进私有目录，之后不依赖相册权限也能用。 */
-    private boolean savePickedImage(Uri uri, String fileName) {
-        try (InputStream in = getContentResolver().openInputStream(uri);
-             FileOutputStream out = new FileOutputStream(new File(getFilesDir(), fileName))) {
-            if (in == null) {
-                return false;
-            }
-            byte[] buf = new byte[8192];
-            int n;
-            while ((n = in.read(buf)) > 0) {
-                out.write(buf, 0, n);
-            }
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 
     /** 有自己选的图就垫图 + 白色蒙版；没有就用柔和渐变。 */
     private void applyBackground() {
@@ -508,6 +416,7 @@ public class MainActivity extends Activity {
                 LayerDrawable layers = new LayerDrawable(
                         new Drawable[]{photo, new ColorDrawable(0xB3FFFFFF)});
                 root.setBackground(layers);
+                setLightBars(false);
                 return;
             }
         }
@@ -515,6 +424,13 @@ public class MainActivity extends Activity {
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{0xFFF4F7FF, 0xFFFFF4EC});
         root.setBackground(gradient);
+        // 淡色底配白图标看不清，切成深色
+        setLightBars(true);
+    }
+
+    /** 浅色底要深色状态栏图标；铺了背景图就交回系统默认。 */
+    private void setLightBars(boolean light) {
+        Ui.lightBars(this, light);
     }
 
     /** 缩到屏幕宽左右再居中裁成屏幕比例，省内存也不变形。 */
@@ -560,181 +476,6 @@ public class MainActivity extends Activity {
             y = (src.getHeight() - cropH) / 2;
         }
         return Bitmap.createBitmap(src, x, y, cropW, cropH);
-    }
-
-    // ---- 角色提醒 ----
-
-    private static final int REQ_PICK_AVATAR = 8;
-    private static final String AVATAR_FILE = "character.jpg";
-    private static final String[] CHAR_STYLES = {"傲娇", "温柔", "严厉", "中二"};
-
-    /** 角色对话框开着的时候指向里面的头像状态，好换完图马上刷新。 */
-    private TextView avatarStateView;
-
-    /** 让喜欢的角色来催：名字 + 口吻 + 头像，都塞进解锁弹窗。名字留空 = 不用角色。 */
-    private void showCharacterDialog() {
-        final SharedPreferences prefs = getSharedPreferences("popmemo", MODE_PRIVATE);
-
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(20), dp(4), dp(20), 0);
-
-        final EditText nameInput = new EditText(this);
-        nameInput.setHint("角色名（留空 = 不用角色）");
-        nameInput.setText(prefs.getString("character_name", ""));
-        nameInput.setSingleLine();
-        box.addView(nameInput);
-
-        final int[] style = {prefs.getInt("character_style", 0)};
-        final TextView styleValue = new TextView(this);
-        styleValue.setTextSize(15f);
-        styleValue.setPadding(0, dp(16), 0, 0);
-        styleValue.setText("口吻风格：" + CHAR_STYLES[style[0]] + "（点我换）");
-        styleValue.setOnClickListener(v -> new AlertDialog.Builder(this)
-                .setTitle("口吻风格")
-                .setItems(CHAR_STYLES, (d, which) -> {
-                    style[0] = which;
-                    styleValue.setText("口吻风格：" + CHAR_STYLES[which] + "（点我换）");
-                })
-                .show());
-        box.addView(styleValue);
-
-        final EditText linesInput = new EditText(this);
-        linesInput.setHint("自己写台词，一行一句，{事项} 会换成内容。\n写了就不用内置风格。");
-        linesInput.setText(prefs.getString("character_lines", ""));
-        linesInput.setMinLines(3);
-        linesInput.setGravity(Gravity.TOP);
-        box.addView(linesInput);
-
-        final EditText keyInput = new EditText(this);
-        keyInput.setHint("DeepSeek API Key（填了就用 AI 现场编台词，事项会发给 DeepSeek）");
-        keyInput.setText(prefs.getString("deepseek_key", ""));
-        keyInput.setSingleLine();
-        keyInput.setInputType(InputType.TYPE_CLASS_TEXT
-                | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
-        box.addView(keyInput);
-
-        LinearLayout avatarRow = new LinearLayout(this);
-        avatarRow.setOrientation(LinearLayout.HORIZONTAL);
-        avatarRow.setGravity(Gravity.CENTER_VERTICAL);
-        avatarRow.setPadding(0, dp(8), 0, 0);
-        Button pickAvatar = new Button(this);
-        pickAvatar.setText("换头像");
-        pickAvatar.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_PICK,
-                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-            try {
-                startActivityForResult(intent, REQ_PICK_AVATAR);
-            } catch (Exception e) {
-                Toast.makeText(this, "打不开相册", Toast.LENGTH_SHORT).show();
-            }
-        });
-        avatarRow.addView(pickAvatar);
-        Button clearAvatar = new Button(this);
-        clearAvatar.setText("去掉");
-        clearAvatar.setOnClickListener(v -> {
-            //noinspection ResultOfMethodCallIgnored
-            new File(getFilesDir(), AVATAR_FILE).delete();
-            updateAvatarState();
-        });
-        avatarRow.addView(clearAvatar);
-        avatarStateView = new TextView(this);
-        avatarStateView.setPadding(dp(12), 0, 0, 0);
-        avatarStateView.setTextSize(13f);
-        avatarStateView.setTextColor(0xFF9AA0A6);
-        avatarRow.addView(avatarStateView);
-        box.addView(avatarRow);
-        updateAvatarState();
-
-        new AlertDialog.Builder(this)
-                .setTitle("角色提醒")
-                .setView(box)
-                .setNegativeButton("算了", null)
-                .setPositiveButton("保存", (d, w) -> prefs.edit()
-                        .putString("character_name", nameInput.getText().toString().trim())
-                        .putInt("character_style", style[0])
-                        .putString("character_lines", linesInput.getText().toString())
-                        .putString("deepseek_key", keyInput.getText().toString().trim())
-                        .apply())
-                .show();
-    }
-
-    private void updateAvatarState() {
-        if (avatarStateView != null) {
-            avatarStateView.setText(
-                    new File(getFilesDir(), AVATAR_FILE).exists() ? "已有头像" : "还没头像");
-        }
-    }
-
-    /** 后台保活三件事：解锁监听走哪条路、电池优化关没关、自启动开没开。 */
-    private void showKeepAlive() {
-        boolean a11y = UnlockAccessibilityService.isEnabled(this);
-        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-        boolean batteryFree = pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
-
-        String[] items = {
-                a11y ? "解锁监听：无障碍保活中（省电，推荐）"
-                        : "解锁监听：前台服务中 · 点我开无障碍",
-                batteryFree ? "电池优化：已关闭（不怕被杀）"
-                        : "电池优化：还开着 · 点我申请关闭",
-                "自启动：点我去系统设置里确认已允许",
-        };
-        new AlertDialog.Builder(this)
-                .setTitle("后台保活")
-                .setItems(items, (dialog, which) -> {
-                    if (which == 0) {
-                        startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-                    } else if (which == 1) {
-                        try {
-                            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                                    Uri.parse("package:" + getPackageName())));
-                        } catch (Exception e) {
-                            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
-                        }
-                    } else {
-                        startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.parse("package:" + getPackageName())));
-                    }
-                })
-                .setPositiveButton("知道了", null)
-                .show();
-    }
-
-    private void showAbout() {
-        String version;
-        try {
-            version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-        } catch (Exception e) {
-            version = "?";
-        }
-        new AlertDialog.Builder(this)
-                .setTitle("PopMemo " + version)
-                .setMessage("解锁就摆出没办完的事，一划处理掉。\n\n"
-                        + "数据只存在这台手机上，不联网、不上传。")
-                .setPositiveButton("知道了", null)
-                .show();
-    }
-
-    private void confirmClear(boolean onlyDone) {
-        String what = onlyDone ? "所有办完的记录" : "全部备忘录";
-        new AlertDialog.Builder(this)
-                .setTitle("清掉" + what + "？")
-                .setMessage("这一步没有撤销。")
-                .setNegativeButton("算了", null)
-                .setPositiveButton("清掉", (dialog, which) -> {
-                    if (onlyDone) {
-                        for (int i = all.size() - 1; i >= 0; i--) {
-                            if (all.get(i).isDone()) {
-                                all.remove(i);
-                            }
-                        }
-                    } else {
-                        all.clear();
-                    }
-                    store.save(all);
-                    refresh();
-                })
-                .show();
     }
 
     private void addCurrentInput() {
@@ -840,6 +581,15 @@ public class MainActivity extends Activity {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
+    /** 一条待办 = 一张白卡：左边状态点，中间文字，右边截止小胶囊 */
+    private class Row {
+        LinearLayout outer;
+        View dot;
+        TextView tag;
+        TextView text;
+        TextView due;
+    }
+
     private class MemoAdapter extends BaseAdapter {
 
         @Override
@@ -859,51 +609,84 @@ public class MainActivity extends Activity {
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            TextView tv;
-            if (convertView instanceof TextView) {
-                tv = (TextView) convertView;
+            Row r;
+            if (convertView != null && convertView.getTag() instanceof Row) {
+                r = (Row) convertView.getTag();
             } else {
-                tv = new TextView(MainActivity.this);
-                tv.setPadding(dp(8), dp(14), dp(8), dp(14));
-                tv.setTextSize(17f);
+                r = new Row();
+                r.outer = new LinearLayout(MainActivity.this);
+                r.outer.setOrientation(LinearLayout.VERTICAL);
+                r.outer.setPadding(dp(Ui.PAGE), dp(2), dp(Ui.PAGE), dp(2));
+
+                LinearLayout card = new LinearLayout(MainActivity.this);
+                card.setOrientation(LinearLayout.HORIZONTAL);
+                card.setGravity(Gravity.CENTER_VERTICAL);
+                card.setPadding(dp(Ui.INNER), dp(10), dp(Ui.INNER), dp(10));
+                card.setBackground(Ui.round(MainActivity.this, Ui.CARD, 12, 0));
+
+                r.dot = new View(MainActivity.this);
+                LinearLayout.LayoutParams dlp =
+                        new LinearLayout.LayoutParams(dp(8), dp(8));
+                dlp.rightMargin = dp(12);
+                card.addView(r.dot, dlp);
+
+                LinearLayout col = new LinearLayout(MainActivity.this);
+                col.setOrientation(LinearLayout.VERTICAL);
+
+                r.tag = new TextView(MainActivity.this);
+                r.tag.setTextSize(11);
+                r.tag.setTextColor(Ui.ACCENT);
+                r.tag.setVisibility(View.GONE);
+                col.addView(r.tag);
+
+                r.text = new TextView(MainActivity.this);
+                r.text.setTextSize(15);
+                r.text.setTextColor(Ui.INK);
+                r.text.setLineSpacing(dp(2), 1f);
+                col.addView(r.text);
+
+                card.addView(col, new LinearLayout.LayoutParams(0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+                r.due = new TextView(MainActivity.this);
+                r.due.setTextSize(11);
+                r.due.setGravity(Gravity.CENTER);
+                r.due.setPadding(dp(8), dp(4), dp(8), dp(4));
+                LinearLayout.LayoutParams ulp = new LinearLayout.LayoutParams(-2, -2);
+                ulp.leftMargin = dp(10);
+                card.addView(r.due, ulp);
+
+                r.outer.addView(card, new LinearLayout.LayoutParams(-1, -2));
+                r.outer.setTag(r);
             }
+
             Memo memo = getItem(position);
             long now = System.currentTimeMillis();
             String due = memo.dueLabel(now);
 
-            SpannableStringBuilder sb = new SpannableStringBuilder();
-            if (!memo.tag.isEmpty()) {
-                int tagStart = sb.length();
-                sb.append(memo.tag);
-                sb.setSpan(new RelativeSizeSpan(0.75f), tagStart, sb.length(),
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                sb.setSpan(new ForegroundColorSpan(0xFF3B82F6), tagStart, sb.length(),
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                sb.append("  ");
-            }
-            sb.append(memo.text);
-            if (due != null && !memo.isDone()) {
-                sb.append("   ");
-                int start = sb.length();
-                sb.append(due);
-                sb.setSpan(new RelativeSizeSpan(0.78f), start, sb.length(),
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                boolean urgent = memo.daysLeft(now) <= 0;
-                sb.setSpan(new ForegroundColorSpan(urgent ? 0xFFD93025 : 0xFF9AA0A6),
-                        start, sb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-            }
-            tv.setText(sb);
-            if (memo.isDone()) {
-                tv.setTextColor(0xFFB0B4B8);
-                tv.setPaintFlags(tv.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
-            } else if (memo.muted) {
-                tv.setTextColor(0xFF9AA0A6);
-                tv.setPaintFlags(tv.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+            r.tag.setVisibility(memo.tag.isEmpty() ? View.GONE : View.VISIBLE);
+            r.tag.setText(memo.tag);
+
+            r.text.setText(memo.text);
+            r.text.setTextColor(memo.isDone() ? Ui.FAINT : memo.muted ? Ui.DIM : Ui.INK);
+            r.text.setPaintFlags(memo.isDone()
+                    ? (r.text.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG)
+                    : (r.text.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG));
+
+            boolean urgent = due != null && memo.daysLeft(now) <= 0;
+            if (due == null || memo.isDone()) {
+                r.due.setVisibility(View.GONE);
             } else {
-                tv.setTextColor(0xFF111111);
-                tv.setPaintFlags(tv.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+                r.due.setVisibility(View.VISIBLE);
+                r.due.setText(due);
+                r.due.setTextColor(urgent ? Ui.DANGER : Ui.ACCENT);
+                r.due.setBackground(Ui.round(MainActivity.this,
+                        urgent ? Ui.DANGER_SOFT : Ui.ACCENT_SOFT, 9, 0));
             }
-            return tv;
+
+            int dotColor = memo.isDone() ? Ui.LINE : urgent ? Ui.DANGER : Ui.ACCENT;
+            r.dot.setBackground(Ui.dot(MainActivity.this, dotColor, 8));
+            return r.outer;
         }
     }
 }

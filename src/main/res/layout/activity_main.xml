@@ -1,118 +1,222 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="12dp">
+    android:background="#F4F6F8">
 
     <LinearLayout
+        android:id="@+id/page_today"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingBottom="62dp">
 
-        <EditText
-            android:id="@+id/input"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:hint="@string/hint_input"
-            android:imeOptions="actionDone"
-            android:inputType="text"
-            android:maxLines="1"
-            android:textSize="17sp" />
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="8dp">
 
-        <Button
-            android:id="@+id/overflow"
-            android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/date_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#8A9099"
+                android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/today"
+                android:textColor="#1A1D21"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:text="@string/overflow" />
-    </LinearLayout>
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:background="@drawable/bg_input_card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="14dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="6dp"
+            android:paddingBottom="2dp">
 
-    <LinearLayout
-        android:id="@+id/permission_banner"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:visibility="gone">
+            <EditText
+                android:id="@+id/input"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="@string/hint_input"
+                android:imeOptions="actionDone"
+                android:inputType="text"
+                android:maxLines="1"
+                android:paddingTop="9dp"
+                android:paddingBottom="9dp"
+                android:textColor="#1A1D21"
+                android:textColorHint="#B6BCC4"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/add_btn"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/bg_add_btn"
+                android:gravity="center"
+                android:text="＋"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/permission_banner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="20dp"
+            android:background="@drawable/bg_input_card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="14dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="8dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/need_overlay"
+                android:textColor="#D9534F"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/grant_overlay"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_add_btn"
+                android:gravity="center"
+                android:paddingStart="14dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="7dp"
+                android:text="@string/grant"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <ListView
+                android:id="@+id/list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="@null"
+                android:dividerHeight="0dp"
+                android:listSelector="@android:color/transparent"
+                android:scrollbars="none" />
+
+            <TextView
+                android:id="@+id/empty"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginBottom="40dp"
+                android:gravity="center"
+                android:lineSpacingExtra="8dp"
+                android:text="@string/empty_hint"
+                android:textColor="#8A9099"
+                android:textSize="14sp"
+                android:visibility="gone" />
+        </FrameLayout>
 
         <TextView
-            android:layout_width="0dp"
+            android:id="@+id/later_footer"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/need_overlay"
-            android:textColor="#D93025"
-            android:textSize="14sp" />
+            android:gravity="center"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:textColor="#8A9099"
+            android:textSize="13sp"
+            android:visibility="gone" />
 
-        <Button
-            android:id="@+id/grant_overlay"
-            android:layout_width="wrap_content"
+        <TextView
+            android:id="@+id/done_footer"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:text="@string/grant" />
+            android:gravity="center"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:textColor="#8A9099"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/undo_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:textColor="#D9534F"
+            android:textSize="13sp"
+            android:visibility="gone" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/empty"
+    <LinearLayout
+        android:id="@+id/nav"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="12dp"
-        android:text="@string/empty_hint"
-        android:textColor="#888888"
-        android:textSize="15sp"
-        android:visibility="gone" />
+        android:layout_height="62dp"
+        android:layout_gravity="bottom"
+        android:background="#FFFFFF"
+        android:orientation="horizontal">
 
-    <ListView
-        android:id="@+id/list"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:divider="#14000000"
-        android:dividerHeight="1dp" />
+        <TextView
+            android:id="@+id/nav_today"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/nav_today"
+            android:textColor="#2F6BFF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
-    <TextView
-        android:id="@+id/undo_bar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="12dp"
-        android:gravity="center"
-        android:textColor="#B3261E"
-        android:textSize="14sp"
-        android:visibility="gone" />
+        <TextView
+            android:id="@+id/nav_time"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/nav_time"
+            android:textColor="#8A9099"
+            android:textSize="13sp" />
 
-    <TextView
-        android:id="@+id/later_footer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="10dp"
-        android:gravity="center"
-        android:textColor="#888888"
-        android:textSize="13sp"
-        android:visibility="gone" />
+        <TextView
+            android:id="@+id/nav_settings"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/nav_settings"
+            android:textColor="#8A9099"
+            android:textSize="13sp" />
+    </LinearLayout>
 
-    <TextView
-        android:id="@+id/done_footer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="10dp"
-        android:gravity="center"
-        android:textColor="#888888"
-        android:textSize="13sp"
-        android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/list_hint"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingBottom="6dp"
-        android:gravity="center"
-        android:text="@string/list_hint"
-        android:textColor="#B0B4B8"
-        android:textSize="12sp" />
-
-</LinearLayout>
+</FrameLayout>

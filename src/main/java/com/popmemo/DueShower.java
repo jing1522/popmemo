@@ -57,6 +57,14 @@ class DueShower {
             return;
         }
 
+        // 总开关：关了就连红卡也不弹，全靠悬浮球提醒。通知文案照旧刷新。
+        if (!prefs.getBoolean("popup_enabled", true)) {
+            if (after != null) {
+                after.onChanged(active);
+            }
+            return;
+        }
+
         // 弹窗频率：每 every 次解锁才弹一次（默认 5）。
         // 红卡（今天到期/已过期）不受限——急事照样每次弹，不压。
         int every = Math.max(1, prefs.getInt("popup_every", 5));

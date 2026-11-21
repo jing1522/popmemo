@@ -5,6 +5,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.accessibility.AccessibilityEvent;
@@ -17,6 +19,8 @@ import android.view.accessibility.AccessibilityEvent;
 public class UnlockAccessibilityService extends AccessibilityService {
 
     private BroadcastReceiver unlockReceiver;
+    private String homePackage;
+    private long lastFlash;
 
     @Override
     public void onServiceConnected() {
@@ -34,7 +38,26 @@ public class UnlockAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        // 不靠无障碍事件干活，挂着只是为了系统保活。
+        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            return;
+        }
+        CharSequence pkg = event.getPackageName();
+        if (pkg == null) {
+            return;
+        }
+        if (homePackage == null) {
+            Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+            ResolveInfo ri = getPackageManager()
+                    .resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY);
+            homePackage = ri == null || ri.activityInfo == null
+                    ? "" : ri.activityInfo.packageName;
+        }
+        // 回到桌面轻闪一下球，提醒它还在；30 秒内只闪一次，别烦人
+        long now = System.currentTimeMillis();
+        if (homePackage.equals(pkg.toString()) && now - lastFlash > 30000) {
+            lastFlash = now;
+            FloatingBall.flash();
+        }
     }
 
     @Override
